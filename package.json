@@ -26,6 +26,8 @@
     "mongodb": "^7.2.0",
     "mongoose": "^9.6.0",
     "next": "16.2.4",
+    "ngraph.graph": "^20.1.2",
+    "ngraph.path": "^1.6.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "three": "^0.184.0",
