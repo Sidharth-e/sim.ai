@@ -11,7 +11,7 @@ export class ModelFactory {
     switch (selectedProvider) {
       case 'openai':
         return new ChatOpenAI({
-          modelName: "gpt-4-turbo-preview",
+          model: "gpt-4-turbo-preview",
           apiKey: process.env.OPENAI_API_KEY,
         });
       case 'azure':
@@ -24,11 +24,11 @@ export class ModelFactory {
       case 'anthropic':
         return new ChatAnthropic({
           anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-          modelName: "claude-3-sonnet-20240229",
+          model: "claude-3-sonnet-20240229",
         });
       case 'gemini':
         return new ChatGoogleGenerativeAI({
-          modelName: "gemini-pro",
+          model: "gemini-pro",
           apiKey: process.env.GOOGLE_API_KEY,
         });
       case 'ollama':
