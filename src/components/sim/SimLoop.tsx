@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { useSimStore } from '@/store/useSimStore';
 import { useWorldStore } from '@/store/useWorldStore';
+import { useTimeStore } from '@/store/useTimeStore';
 import { BLUEPRINTS, CRAFTABLE_ITEMS, GATHERABLE_RESOURCES } from '@/lib/ai/blueprints';
 
 function parseNumbers(args: string): number[] {
@@ -22,11 +23,14 @@ export default function SimLoop() {
     removeFromInventory
   } = useSimStore();
   const { addBlock, removeBlock, addEntity, removeEntity } = useWorldStore();
+  const { tickTime } = useTimeStore();
   const tickRef = useRef(0);
   const outcomesRef = useRef<string[]>([]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
+      tickTime();
+
       const state = useSimStore.getState();
       const { stats, isThinking } = state;
 

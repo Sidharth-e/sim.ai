@@ -1,6 +1,7 @@
 'use client';
 import { useSimStore } from '@/store/useSimStore';
-import { Heart, Zap, Smile } from 'lucide-react';
+import { useTimeStore } from '@/store/useTimeStore';
+import { Heart, Zap, Smile, Sun, Moon, Sunrise, Sunset } from 'lucide-react';
 
 const ITEM_CONFIG: Record<string, { bg: string; label: string }> = {
   wood: { bg: '#6b4226', label: 'Wood' },
@@ -33,11 +34,50 @@ function StatBar({
   );
 }
 
+function TimeIcon({ hour }: { hour: number }) {
+  if (hour >= 6 && hour < 8) return <Sunrise className="w-4 h-4 text-orange-400" />;
+  if (hour >= 8 && hour < 18) return <Sun className="w-4 h-4 text-yellow-400" />;
+  if (hour >= 18 && hour < 20) return <Sunset className="w-4 h-4 text-orange-500" />;
+  return <Moon className="w-4 h-4 text-blue-300" />;
+}
+
+function formatHour(h: number): string {
+  const hh = h % 12 || 12;
+  const mm = '00';
+  const ampm = h < 12 ? 'AM' : 'PM';
+  return `${hh}:${mm} ${ampm}`;
+}
+
 export default function SimOverlay() {
   const { stats, isThinking, lastThought, inventory } = useSimStore();
+  const { hour, minute, day, year, getMonthName, getTimeString, getSunrise, getSunset, isDaytime } = useTimeStore();
+
+  const sunriseStr = formatHour(Math.round(getSunrise()));
+  const sunsetStr = formatHour(Math.round(getSunset()));
 
   return (
     <>
+      {/* Time panel */}
+      <div className="absolute top-14 left-4 bg-gray-950/80 backdrop-blur-sm p-3 rounded-lg text-white z-50 pointer-events-auto border border-white/10 shadow-2xl">
+        <div className="flex items-center gap-2 mb-1">
+          <TimeIcon hour={hour} />
+          <span className="text-sm font-mono font-semibold">{getTimeString()}</span>
+        </div>
+        <div className="text-[11px] text-gray-400 font-mono">
+          {getMonthName()} {day}, Year {year}
+        </div>
+        <div className="flex gap-3 mt-1.5 text-[10px] text-gray-500 font-mono">
+          <span className="flex items-center gap-1">
+            <Sunrise className="w-3 h-3 text-orange-400/60" />
+            {sunriseStr}
+          </span>
+          <span className="flex items-center gap-1">
+            <Sunset className="w-3 h-3 text-orange-500/60" />
+            {sunsetStr}
+          </span>
+        </div>
+      </div>
+
       {/* Status panel */}
       <div className="absolute top-4 right-4 bg-gray-950/80 backdrop-blur-sm p-3.5 rounded-lg w-64 text-white z-50 pointer-events-auto border border-white/10 shadow-2xl">
         <div className="flex justify-between items-center mb-2.5">
