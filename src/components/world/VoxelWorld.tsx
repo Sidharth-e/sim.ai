@@ -14,6 +14,7 @@ const BLOCK_COLORS: Record<string, string> = {
   sand: '#d4bc60',
   wood: '#6b4226',
   leaves: '#2d8c1e',
+  snow: '#f0f0ff',
 };
 
 function BlockInstances({
@@ -328,7 +329,7 @@ function WaterSurface() {
       rotation={[-Math.PI / 2, 0, 0]}
       receiveShadow
     >
-      <planeGeometry args={[90, 90]} />
+      <planeGeometry args={[500, 500]} />
       <meshStandardMaterial
         color="#2d7dd2"
         transparent
@@ -346,38 +347,38 @@ export default function VoxelWorld() {
   return (
     <Canvas
       shadows
-      camera={{ position: [40, 30, 40], fov: 55 }}
+      camera={{ position: [80, 60, 80], fov: 55 }}
       gl={{ antialias: true }}
     >
       <Sky
-        sunPosition={[100, 60, 80]}
+        sunPosition={[200, 100, 150]}
         turbidity={6}
         rayleigh={1.5}
         mieCoefficient={0.005}
         mieDirectionalG={0.8}
       />
 
-      <fog attach="fog" args={['#a7d3f5', 60, 150]} />
+      <fog attach="fog" args={['#a7d3f5', 200, 500]} />
 
       <ambientLight intensity={0.35} />
       <directionalLight
-        position={[30, 40, 20]}
+        position={[80, 100, 60]}
         intensity={1.8}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-far={120}
-        shadow-camera-left={-50}
-        shadow-camera-right={50}
-        shadow-camera-top={50}
-        shadow-camera-bottom={-50}
+        shadow-mapSize-width={4096}
+        shadow-mapSize-height={4096}
+        shadow-camera-far={400}
+        shadow-camera-left={-200}
+        shadow-camera-right={200}
+        shadow-camera-top={200}
+        shadow-camera-bottom={-200}
       />
       <hemisphereLight args={['#87ceeb', '#4a7a3d', 0.25]} />
 
       <OrbitControls
         maxPolarAngle={Math.PI / 2.1}
         minDistance={5}
-        maxDistance={120}
+        maxDistance={500}
         enableDamping
         dampingFactor={0.08}
         rotateSpeed={0.8}
