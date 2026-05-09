@@ -53,86 +53,79 @@ export default function SimLoop() {
             stats: { ...state.stats, hunger: newHunger }
           };
 
-          const res = await fetch('/api/agent/tick', { 
-            method: 'POST', 
+          const res = await fetch('/api/agent/tick', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
               prompt: `I am a Sim in a voxel world. My hunger is ${newHunger}%. I need to find food or build a shelter. I can move and place blocks. What should I do?`,
               worldState
-            }) 
+            })
           });
           const data = await res.json();
           if (data.success) {
-            const output = data.output;
-            setLastThought(output);
+            setLastThought(data.thought || '');
 
-            // Matches ACTION: eat()
-            if (output.includes('ACTION: eat()')) {
-              const currentHunger = useSimStore.getState().stats.hunger;
-              updateStats({ hunger: Math.min(100, currentHunger + 30) });
-            }
+            const actions: { tool: string; args: string }[] = data.actions || [];
+            for (const action of actions) {
+              const args = action.args;
+              console.log(`[SimLoop] Processing action: ${action.tool}(${args})`);
 
-            // Simple Action Parser
-            // Matches ACTION: move_to(x, y, z)
-            const moveMatch = output.match(/ACTION: move_to\(([^)]+)\)/);
-            if (moveMatch) {
-              const [x, y, z] = moveMatch[1].split(',').map(Number);
-              if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                setPosition([x, y, z]);
-              }
-            }
-
-            // Matches ACTION: place_block(x, y, z, type)
-            const blockMatch = output.match(/ACTION: place_block\(([^)]+)\)/);
-            if (blockMatch) {
-              const parts = blockMatch[1].split(',');
-              const x = Number(parts[0]);
-              const y = Number(parts[1]);
-              const z = Number(parts[2]);
-              const type = parts[3]?.trim().replace(/['"]/g, '') || 'wood';
-              if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                addBlock([x, y, z], type);
-              }
-            }
-
-            // Matches ACTION: cut_tree(x, y, z)
-            const cutTreeMatch = output.match(/ACTION: cut_tree\(([^)]+)\)/);
-            if (cutTreeMatch) {
-              const [x, y, z] = cutTreeMatch[1].split(',').map(Number);
-              if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                removeBlock([x, y, z]);
-                addToInventory('wood', 1);
-              }
-            }
-
-            // Matches ACTION: hunt(id)
-            const huntMatch = output.match(/ACTION: hunt\(([^)]+)\)/);
-            if (huntMatch) {
-              const id = huntMatch[1].trim().replace(/['"]/g, '');
-              removeEntity(id);
-              addToInventory('raw_meat', 1);
-            }
-
-            // Matches ACTION: build(type)
-            const buildMatch = output.match(/ACTION: build\(([^)]+)\)/);
-            if (buildMatch) {
-              const type = buildMatch[1].trim().replace(/['"]/g, '');
-              const inv = useSimStore.getState().inventory;
-              if ((inv.wood || 0) >= 1) {
-                removeFromInventory('wood', 1);
-                const pos = useSimStore.getState().position;
-                addBlock([Math.round(pos[0]) + 1, Math.round(pos[1]), Math.round(pos[2])], type);
-              }
-            }
-
-            // Matches ACTION: cook()
-            if (output.includes('ACTION: cook()')) {
-              const inv = useSimStore.getState().inventory;
-              const hasCampfire = useWorldStore.getState().blocks.some(b => b.type === 'campfire');
-              if ((inv.raw_meat || 0) >= 1 && hasCampfire) {
-                removeFromInventory('raw_meat', 1);
-                const currentHunger = useSimStore.getState().stats.hunger;
-                updateStats({ hunger: Math.min(100, currentHunger + 30) });
+              switch (action.tool) {
+                case 'eat': {
+                  const cur = useSimStore.getState().stats.hunger;
+                  updateStats({ hunger: Math.min(100, cur + 30) });
+                  break;
+                }
+                case 'move_to': {
+                  const parts = args.replace(/[\[\]]/g, '').split(',').map(Number);
+                  if (parts.length >= 3 && parts.every(n => !isNaN(n))) {
+                    setPosition([parts[0], parts[1], parts[2]]);
+                  }
+                  break;
+                }
+                case 'place_block': {
+                  const parts = args.replace(/[\[\]]/g, '').split(',');
+                  const x = Number(parts[0]), y = Number(parts[1]), z = Number(parts[2]);
+                  const type = parts[3]?.trim().replace(/['"]/g, '') || 'wood';
+                  if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                    addBlock([x, y, z], type);
+                  }
+                  break;
+                }
+                case 'cut_tree': {
+                  const parts = args.replace(/[\[\]]/g, '').split(',').map(Number);
+                  if (parts.length >= 3 && parts.every(n => !isNaN(n))) {
+                    removeBlock([parts[0], parts[1], parts[2]]);
+                    addToInventory('wood', 1);
+                  }
+                  break;
+                }
+                case 'hunt': {
+                  const id = args.trim().replace(/['"]/g, '');
+                  removeEntity(id);
+                  addToInventory('raw_meat', 1);
+                  break;
+                }
+                case 'build': {
+                  const type = args.trim().replace(/['"]/g, '');
+                  const inv = useSimStore.getState().inventory;
+                  if ((inv.wood || 0) >= 1) {
+                    removeFromInventory('wood', 1);
+                    const pos = useSimStore.getState().position;
+                    addBlock([Math.round(pos[0]) + 1, Math.round(pos[1]), Math.round(pos[2])], type);
+                  }
+                  break;
+                }
+                case 'cook': {
+                  const inv = useSimStore.getState().inventory;
+                  const hasCampfire = useWorldStore.getState().blocks.some(b => b.type === 'campfire');
+                  if ((inv.raw_meat || 0) >= 1 && hasCampfire) {
+                    removeFromInventory('raw_meat', 1);
+                    const cur = useSimStore.getState().stats.hunger;
+                    updateStats({ hunger: Math.min(100, cur + 30) });
+                  }
+                  break;
+                }
               }
             }
           }

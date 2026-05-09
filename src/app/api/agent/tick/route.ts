@@ -17,11 +17,12 @@ export async function POST(request: Request) {
     }
 
     console.log(`[Agent API] Triggering agent with prompt: "${prompt}"`);
-    const output = await runAgentCycle(prompt, worldState);
-    
-    return NextResponse.json({ 
+    const result = await runAgentCycle(prompt, worldState);
+
+    return NextResponse.json({
       success: true,
-      output 
+      thought: result.thought,
+      actions: result.actions,
     });
   } catch (error) {
     console.error("[Agent API] Error:", error);
