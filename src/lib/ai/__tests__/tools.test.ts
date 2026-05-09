@@ -1,23 +1,32 @@
-import { createTools } from "../tools";
+import { createTools, AgentWorldState } from "../tools";
 
 describe("createTools", () => {
-  const worldState = {
-    blocks: [{ x: 0, y: 0, z: 0, type: "grass" }],
-    entities: [{ id: "sheep_1", type: "sheep", x: 2, y: 0, z: 2 }],
-    inventory: ["wood"],
-    position: { x: 0, y: 1, z: 0 },
+  const worldState: AgentWorldState = {
+    blocks: [{ pos: [0, 0, 0], type: "grass" }],
+    entities: [{ id: "sheep_1", type: "sheep", pos: [2, 0, 2], health: 100 }],
+    inventory: { wood: 5, stone: 2 },
+    position: [0, 1, 0],
+    stats: { hunger: 80, energy: 100, happiness: 100 },
   };
 
-  it("should create tools with worldState", async () => {
+  it("should have observation tools", async () => {
     const tools = createTools(worldState);
-    const get_world_info = tools.find((t) => t.name === "get_world_info");
-    expect(get_world_info).toBeDefined();
 
-    const info = await get_world_info?.func("");
-    expect(info).toContain("Blocks: " + JSON.stringify(worldState.blocks));
-    expect(info).toContain("Entities: " + JSON.stringify(worldState.entities));
-    expect(info).toContain("Inventory: " + JSON.stringify(worldState.inventory));
-    expect(info).toContain("Current Position: " + JSON.stringify(worldState.position));
+    const checkSelf = tools.find((t) => t.name === "check_self");
+    expect(checkSelf).toBeDefined();
+    const selfInfo = await checkSelf?.func("");
+    expect(selfInfo).toContain("Hunger: 80%");
+    expect(selfInfo).toContain("wood: 5");
+
+    const lookAround = tools.find((t) => t.name === "look_around");
+    expect(lookAround).toBeDefined();
+    const surroundings = await lookAround?.func("");
+    expect(surroundings).toContain("grass");
+
+    const search = tools.find((t) => t.name === "search");
+    expect(search).toBeDefined();
+    const animalResult = await search?.func("animal");
+    expect(animalResult).toContain("sheep");
   });
 
   it("should have survival tools", async () => {
@@ -101,10 +110,22 @@ describe("createTools", () => {
     expect(result).toContain("campfire");
   });
 
-  it("should return default info when worldState is missing", async () => {
+  it("should have save_learning tool", async () => {
+    const tools = createTools(worldState);
+    const saveLearning = tools.find(t => t.name === "save_learning");
+    expect(saveLearning).toBeDefined();
+    const result = await saveLearning?.func("trees give wood");
+    expect(result).toContain("LEARNING SAVED");
+  });
+
+  it("should return defaults when worldState is missing", async () => {
     const tools = createTools();
-    const get_world_info = tools.find((t) => t.name === "get_world_info");
-    const info = await get_world_info?.func("");
-    expect(info).toBe("The world is a 3D voxel grid. There is a grass block at 0,0,0. You are currently at 0,1,0.");
+    const checkSelf = tools.find((t) => t.name === "check_self");
+    const info = await checkSelf?.func("");
+    expect(info).toContain("Hunger: 100%");
+
+    const lookAround = tools.find((t) => t.name === "look_around");
+    const around = await lookAround?.func("");
+    expect(around).toContain("flat grass world");
   });
 });
