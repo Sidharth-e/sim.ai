@@ -4,8 +4,15 @@ import { useSimStore } from '@/store/useSimStore';
 import { useWorldStore } from '@/store/useWorldStore';
 
 export default function SimLoop() {
-  const { updateStats, setThinking, setLastThought, setPosition } = useSimStore();
-  const { addBlock } = useWorldStore();
+  const { 
+    updateStats, 
+    setThinking, 
+    setLastThought, 
+    setPosition,
+    addToInventory,
+    removeFromInventory
+  } = useSimStore();
+  const { addBlock, removeBlock, addEntity, removeEntity } = useWorldStore();
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -15,6 +22,22 @@ export default function SimLoop() {
       // 1. Decay stats slower (1% every 5s instead of 5%)
       const newHunger = Math.max(0, stats.hunger - 1);
       updateStats({ hunger: newHunger });
+
+      // Random spawning of entities
+      const worldState = useWorldStore.getState();
+      if (worldState.entities.length < 3 && Math.random() < 0.1) {
+        const simPos = state.position;
+        addEntity({
+          id: Math.random().toString(36).substring(2, 9),
+          type: 'animal',
+          pos: [
+            simPos[0] + (Math.random() - 0.5) * 10,
+            1,
+            simPos[2] + (Math.random() - 0.5) * 10
+          ],
+          health: 100
+        });
+      }
 
       // 2. If hungry and not thinking, trigger agent
       if (newHunger < 85 && !isThinking) {
@@ -69,6 +92,47 @@ export default function SimLoop() {
               const type = parts[3]?.trim().replace(/['"]/g, '') || 'wood';
               if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
                 addBlock([x, y, z], type);
+              }
+            }
+
+            // Matches ACTION: cut_tree(x, y, z)
+            const cutTreeMatch = output.match(/ACTION: cut_tree\(([^)]+)\)/);
+            if (cutTreeMatch) {
+              const [x, y, z] = cutTreeMatch[1].split(',').map(Number);
+              if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                removeBlock([x, y, z]);
+                addToInventory('wood', 1);
+              }
+            }
+
+            // Matches ACTION: hunt(id)
+            const huntMatch = output.match(/ACTION: hunt\(([^)]+)\)/);
+            if (huntMatch) {
+              const id = huntMatch[1].trim().replace(/['"]/g, '');
+              removeEntity(id);
+              addToInventory('raw_meat', 1);
+            }
+
+            // Matches ACTION: build(type)
+            const buildMatch = output.match(/ACTION: build\(([^)]+)\)/);
+            if (buildMatch) {
+              const type = buildMatch[1].trim().replace(/['"]/g, '');
+              const inv = useSimStore.getState().inventory;
+              if ((inv.wood || 0) >= 1) {
+                removeFromInventory('wood', 1);
+                const pos = useSimStore.getState().position;
+                addBlock([Math.round(pos[0]) + 1, Math.round(pos[1]), Math.round(pos[2])], type);
+              }
+            }
+
+            // Matches ACTION: cook()
+            if (output.includes('ACTION: cook()')) {
+              const inv = useSimStore.getState().inventory;
+              const hasCampfire = useWorldStore.getState().blocks.some(b => b.type === 'campfire');
+              if ((inv.raw_meat || 0) >= 1 && hasCampfire) {
+                removeFromInventory('raw_meat', 1);
+                const currentHunger = useSimStore.getState().stats.hunger;
+                updateStats({ hunger: Math.min(100, currentHunger + 30) });
               }
             }
           }
