@@ -155,17 +155,25 @@ export default function SimLoop() {
                   if (parts.length >= 3 && parts.every(n => !isNaN(n))) {
                     const tx = parts[0], ty = parts[1], tz = parts[2];
                     const ws = useWorldStore.getState();
-                    const treeBlocks = ws.blocks.filter(b =>
-                      (b.type === 'wood' || b.type === 'leaves') &&
-                      Math.abs(b.pos[0] - tx) <= 1 &&
-                      Math.abs(b.pos[2] - tz) <= 1 &&
-                      b.pos[1] >= ty
-                    );
+                    const treePositions = new Set<string>();
                     let woodCount = 0;
-                    for (const b of treeBlocks) {
-                      removeBlock(b.pos);
-                      if (b.type === 'wood') woodCount++;
+                    for (const b of ws.blocks) {
+                      if (
+                        (b.type === 'wood' || b.type === 'leaves') &&
+                        Math.abs(b.pos[0] - tx) <= 1 &&
+                        Math.abs(b.pos[2] - tz) <= 1 &&
+                        b.pos[1] >= ty
+                      ) {
+                        treePositions.add(`${b.pos[0]},${b.pos[1]},${b.pos[2]}`);
+                        if (b.type === 'wood') woodCount++;
+                      }
                     }
+                    useWorldStore.setState((state) => ({
+                      blocks: state.blocks.filter(b => {
+                        if (b.type !== 'wood' && b.type !== 'leaves') return true;
+                        return !treePositions.has(`${b.pos[0]},${b.pos[1]},${b.pos[2]}`);
+                      }),
+                    }));
                     const gained = Math.max(woodCount, 1);
                     addToInventory('wood', gained);
                     outcomesRef.current.push(`- cut_tree at [${tx},${ty},${tz}]: got ${gained} wood`);
