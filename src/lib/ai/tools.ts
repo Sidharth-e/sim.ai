@@ -153,6 +153,14 @@ export const createTools = (worldState?: AgentWorldState) => [
     },
   }),
   new DynamicTool({
+    name: "save_learning",
+    description: "Save an important learning or insight to your permanent knowledge base. Use when you discover something useful: effective strategies, resource locations, failed approaches to avoid, patterns about the world. Arguments: a short learning statement. Example: save_learning('cooking meat requires a campfire nearby')",
+    func: async (input: string) => {
+      console.log(`[Agent Tool] save_learning called with: ${input}`);
+      return `LEARNING SAVED: ${input}`;
+    },
+  }),
+  new DynamicTool({
     name: "list_blueprints",
     description: "Lists all available building blueprints with their material costs. No arguments.",
     func: async () => {

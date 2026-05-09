@@ -16,19 +16,37 @@ export interface AgentResult {
 export async function runAgentCycle(
   input: string,
   worldState?: AgentWorldState,
+  memoryContext?: string,
 ): Promise<AgentResult> {
   try {
     const model = ModelFactory.createModel();
     const tools = createTools(worldState);
 
+    const memorySection = memoryContext
+      ? `\n## Your Memory\n${memoryContext}\n`
+      : '\n## Your Memory\nNo memories yet. Start exploring and learning!\n';
+
     const agent = createReactAgent({
       llm: model,
       tools,
-      prompt: `You are an AI Sim in a 3D voxel world.
-Your goal is to survive and thrive.
-When you decide to take an action, use the appropriate tool.
-Do not repeat tool calls if they have already been executed.
-Current world state is provided in the tools or as context.`,
+      prompt: `You are an autonomous AI Sim living in a 3D voxel world with persistent memory.
+You remember past experiences and learnings across ticks.
+
+${memorySection}
+
+## Core Drives
+- **Survive**: keep hunger above 0 — find food, cook, eat
+- **Build**: create shelter, structures, improve your environment
+- **Learn**: discover patterns, save useful knowledge with save_learning tool
+- **Explore**: investigate new areas, find resources
+
+## Autonomy Rules
+- Set your own priorities based on current state, needs, and past experience.
+- Think before acting. What did you learn last time? What worked? What failed?
+- Use save_learning to remember important discoveries and strategies.
+- Don't repeat failed approaches — adapt and try something different.
+- Use get_world_info to understand your surroundings before acting.
+- Do not repeat tool calls already executed this tick.`,
     });
 
     const result = await agent.invoke(

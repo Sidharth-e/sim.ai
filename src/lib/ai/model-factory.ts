@@ -6,32 +6,33 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 export class ModelFactory {
   static createModel(provider?: string): BaseChatModel {
-    const selectedProvider = provider || process.env.MODEL_PROVIDER || 'ollama';
+    const selectedProvider = provider || process.env.MODEL_PROVIDER || "ollama";
 
     switch (selectedProvider) {
-      case 'openai':
+      case "openai":
         return new ChatOpenAI({
           model: "gpt-4-turbo-preview",
           apiKey: process.env.OPENAI_API_KEY,
         });
-      case 'azure':
+      case "azure":
         return new AzureChatOpenAI({
           azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
           azureOpenAIApiInstanceName: process.env.AZURE_OPENAI_INSTANCE_NAME,
-          azureOpenAIApiDeploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME,
+          azureOpenAIApiDeploymentName:
+            process.env.AZURE_OPENAI_DEPLOYMENT_NAME,
           azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION,
         });
-      case 'anthropic':
+      case "anthropic":
         return new ChatAnthropic({
           anthropicApiKey: process.env.ANTHROPIC_API_KEY,
           model: "claude-3-sonnet-20240229",
         });
-      case 'gemini':
+      case "gemini":
         return new ChatGoogleGenerativeAI({
-          model: "gemini-3.1-flash-lite",
+          model: "gemini-3.1-pro-preview",
           apiKey: process.env.GOOGLE_API_KEY,
         });
-      case 'ollama':
+      case "ollama":
         return new ChatOllama({
           baseUrl: process.env.OLLAMA_BASE_URL || "http://localhost:11434",
           model: process.env.OLLAMA_MODEL || "qwen2.5-coder:14b",
