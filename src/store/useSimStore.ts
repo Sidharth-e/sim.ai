@@ -25,7 +25,7 @@ export const useSimStore = create<SimState>((set) => ({
   position: [0, 6, 0],
   isThinking: false,
   lastThought: '',
-  inventory: { wood: 0, raw_meat: 0, cooked_meat: 0 },
+  inventory: { wood: 0, stone: 0, dirt: 0, sand: 0, raw_meat: 0, cooked_meat: 0, plank: 0, stick: 0, plant_fiber: 0, coal: 0, wheat: 0, bread: 0, rope: 0, stone_tool: 0, torch_item: 0 },
   updateStats: (delta) => set((state) => ({
     stats: { ...state.stats, ...delta }
   })),
