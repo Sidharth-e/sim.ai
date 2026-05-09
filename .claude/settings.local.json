@@ -11,7 +11,8 @@
       "Bash(npm install *)",
       "Bash(wc -l package-lock.json)",
       "Bash(head -5 package-lock.json)",
-      "Bash(pnpm install *)"
+      "Bash(pnpm install *)",
+      "Bash(git rm *)"
     ]
   }
 }
