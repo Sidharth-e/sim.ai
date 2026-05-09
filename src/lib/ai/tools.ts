@@ -145,11 +145,30 @@ export const createTools = (worldState?: AgentWorldState) => [
         return "The world is a 3D voxel grid. There is a grass block at 0,0,0. You are currently at 0,1,0.";
       }
       const { blocks, entities, inventory, position } = worldState;
-      const blocksStr = blocks ? JSON.stringify(blocks) : "none";
-      const entitiesStr = entities ? JSON.stringify(entities) : "none";
-      const inventoryStr = inventory ? JSON.stringify(inventory) : "empty";
-      const positionStr = position ? JSON.stringify(position) : "unknown";
-      return `Blocks: ${blocksStr}. Entities: ${entitiesStr}. Inventory: ${inventoryStr}. Current Position: ${positionStr}.`;
+
+      const blockCounts: Record<string, number> = {};
+      const blockArr = (blocks as { pos: number[]; type: string }[]) || [];
+      for (const b of blockArr) {
+        blockCounts[b.type] = (blockCounts[b.type] || 0) + 1;
+      }
+      const blocksStr = Object.entries(blockCounts).map(([t, c]) => `${t}: ${c}`).join(', ') || 'none';
+
+      const treePositions = blockArr
+        .filter(b => b.type === 'wood' || b.type === 'leaves')
+        .slice(0, 10)
+        .map(b => `[${b.pos.join(',')}]`);
+
+      const entityArr = (entities as { id: string; type: string; pos: number[] }[]) || [];
+      const entitiesStr = entityArr.length > 0
+        ? entityArr.slice(0, 10).map(e => `${e.type}(${e.id}) at [${e.pos.map(n => Math.round(n)).join(',')}]`).join('; ')
+        : 'none nearby';
+
+      const inv = (inventory as unknown as Record<string, number>) || {};
+      const inventoryStr = Object.entries(inv).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(', ') || 'empty';
+
+      const positionStr = position ? JSON.stringify(position) : 'unknown';
+
+      return `Position: ${positionStr}. Nearby blocks: ${blocksStr}. Trees at: ${treePositions.join(', ') || 'none visible'}. Entities: ${entitiesStr}. Inventory: ${inventoryStr}.`;
     },
   }),
   new DynamicTool({

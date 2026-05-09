@@ -60,9 +60,24 @@ export default function SimLoop() {
         try {
           console.log(`[SimLoop] Tick ${currentTick} — triggering agent`);
 
+          const VIEW_RADIUS = 15;
+          const [px, py, pz] = state.position;
+          const allBlocks = useWorldStore.getState().blocks;
+          const allEntities = useWorldStore.getState().entities;
+
+          const nearbyBlocks = allBlocks.filter(b =>
+            Math.abs(b.pos[0] - px) <= VIEW_RADIUS &&
+            Math.abs(b.pos[1] - py) <= VIEW_RADIUS &&
+            Math.abs(b.pos[2] - pz) <= VIEW_RADIUS
+          );
+          const nearbyEntities = allEntities.filter(e =>
+            Math.abs(e.pos[0] - px) <= VIEW_RADIUS &&
+            Math.abs(e.pos[2] - pz) <= VIEW_RADIUS
+          );
+
           const tickWorldState = {
-            blocks: useWorldStore.getState().blocks,
-            entities: useWorldStore.getState().entities,
+            blocks: nearbyBlocks,
+            entities: nearbyEntities,
             inventory: state.inventory,
             position: state.position,
             stats: { ...state.stats, hunger: newHunger }
