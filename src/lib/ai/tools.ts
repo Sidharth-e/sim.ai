@@ -22,6 +22,14 @@ export const createTools = () => [
     },
   }),
   new DynamicTool({
+    name: "eat",
+    description: "Consumes food to replenish hunger. No arguments needed. Example: eat()",
+    func: async () => {
+      console.log(`[Agent Tool] eat called`);
+      return `ACTION: eat()`;
+    },
+  }),
+  new DynamicTool({
     name: "get_world_info",
     description: "Returns information about the current state of the world.",
     func: async () => {

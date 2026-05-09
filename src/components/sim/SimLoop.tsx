@@ -12,11 +12,12 @@ export default function SimLoop() {
       const state = useSimStore.getState();
       const { stats, isThinking } = state;
 
-      // 1. Decay stats faster for demo
-      updateStats({ hunger: Math.max(0, stats.hunger - 5) });
+      // 1. Decay stats slower (1% every 5s instead of 5%)
+      const newHunger = Math.max(0, stats.hunger - 1);
+      updateStats({ hunger: newHunger });
 
       // 2. If hungry and not thinking, trigger agent
-      if (stats.hunger < 85 && !isThinking) {
+      if (newHunger < 85 && !isThinking) {
         setThinking(true);
         try {
           console.log('[SimLoop] Triggering agent tick...');
@@ -24,13 +25,19 @@ export default function SimLoop() {
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              prompt: `I am a Sim in a voxel world. My hunger is ${stats.hunger}%. I need to find food or build a shelter. I can move and place blocks. What should I do?` 
+              prompt: `I am a Sim in a voxel world. My hunger is ${newHunger}%. I need to find food or build a shelter. I can move and place blocks. What should I do?` 
             }) 
           });
           const data = await res.json();
           if (data.success) {
             const output = data.output;
             setLastThought(output);
+
+            // Matches ACTION: eat()
+            if (output.includes('ACTION: eat()')) {
+              const currentHunger = useSimStore.getState().stats.hunger;
+              updateStats({ hunger: Math.min(100, currentHunger + 30) });
+            }
 
             // Simple Action Parser
             // Matches ACTION: move_to(x, y, z)
