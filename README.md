@@ -8,34 +8,35 @@ A simulated AI character dropped into a procedurally generated voxel world. Ever
 
 ### Core Systems
 
-- **Autonomous Agent Loop** — AI decides its own goals and priorities each tick based on needs (hunger, energy, happiness) and accumulated knowledge
-- **Persistent Memory** — experiences saved as `.md` files in `memories/`. Knowledge base grows over time as agent discovers patterns and strategies
-- **3D Voxel World** — interactive terrain with blocks, trees, animals, and buildable structures rendered with Three.js
-- **Blueprints & Crafting** — 14 building blueprints (houses, towers, farms, bridges) and 7 crafting recipes
-- **Resource Gathering** — mining, woodcutting, hunting, farming with real inventory management
+- **Autonomous Agent Loop** — AI decides its own goals and priorities each tick based on needs (hunger, energy, happiness) and accumulated knowledge.
+- **Persistent Memory** — Experiences saved as `.md` files in `memories/`. Knowledge base grows over time as agent discovers patterns and strategies. Semantic search powered by MongoDB Vector Search.
+- **Dynamic 3D World** — Procedurally generated voxel terrain with biomes (Plains, Forest, Mountain, Water). Features a custom animated Sim character and low-poly animal models.
+- **Day/Night Cycle** — Real-time clock with dynamic lighting, seasonal day-length variation, and sunrise/sunset effects.
+- **Blueprints & Crafting** — Building blueprints (houses, towers, farms, bridges) and crafting recipes (tools, food, materials).
+- **Expanded Action Set** — Agent can move, gather, hunt, build, craft, terraform, cook, and learn autonomously.
 
 ### Tech Stack
 
 - **Next.js 16** + React 19
-- **Three.js** via React Three Fiber for 3D rendering
-- **LangChain / LangGraph** for AI agent orchestration
-- **Multi-provider LLM support** — Anthropic, OpenAI, Azure OpenAI, Google Gemini, Ollama
-- **Zustand** for state management
-- **MongoDB** for vector-based memory search
-- **TypeScript** throughout
+- **Three.js** via React Three Fiber for high-performance 3D rendering using `InstancedMesh`.
+- **LangChain / LangGraph** for AI agent orchestration with a 100-step recursion limit.
+- **Multi-provider LLM support** — Anthropic, OpenAI, Azure OpenAI, Google Gemini, Ollama.
+- **Zustand** for global client-side state management (Simulation, World, Time).
+- **MongoDB** for persistent storage and vector-based memory search.
+- **TypeScript** for end-to-end type safety.
 
 ## Getting Started
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Set up environment variables
 cp .env.example .env.local
-# Add your LLM API key(s)
+# Add your LLM API key(s) and MongoDB URI
 
 # Run development server
-npm run dev
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to watch the sim live.
@@ -48,18 +49,19 @@ src/
     api/agent/tick/     # Agent tick API endpoint
   components/
     sim/SimLoop.tsx     # Main simulation loop + action execution
-    world/VoxelWorld.tsx# 3D world renderer
-    ui/SimOverlay.tsx   # HUD overlay (stats, inventory, thoughts)
+    world/VoxelWorld.tsx# 3D world renderer with custom models & lighting
+    ui/SimOverlay.tsx   # HUD overlay (stats, inventory, thoughts, date/time)
   lib/ai/
     agent.ts            # LangGraph ReAct agent with memory injection
     blueprints.ts       # Building blueprints + crafting recipes
-    tools.ts            # Agent tools (build, gather, craft, hunt, etc.)
+    tools.ts            # Agent tools (build, gather, craft, hunt, terraform, etc.)
     memory-manager.ts   # File-based .md memory system
     memory.ts           # MongoDB vector memory (semantic search)
     model-factory.ts    # Multi-provider LLM factory
   store/
     useSimStore.ts      # Sim state (stats, inventory, position)
     useWorldStore.ts    # World state (blocks, entities)
+    useTimeStore.ts     # Game time state (hour, day, month, year)
 memories/
   knowledge.md          # Agent's accumulated learnings
   experiences/          # Per-tick experience logs

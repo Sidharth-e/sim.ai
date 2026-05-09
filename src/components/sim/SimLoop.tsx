@@ -13,6 +13,10 @@ function hasResources(inventory: Record<string, number>, cost: Record<string, nu
   return Object.entries(cost).every(([item, amount]) => (inventory[item] || 0) >= amount);
 }
 
+const TRAVEL_SPEED = 5;
+const ENERGY_PER_BLOCK = 2;
+const HUNGER_PER_BLOCK = 1;
+
 export default function SimLoop() {
   const tickRef = useRef(0);
   const outcomesRef = useRef<string[]>([]);
@@ -23,12 +27,45 @@ export default function SimLoop() {
 
       const sim = useSimStore.getState();
       const world = useWorldStore.getState();
-      const { updateStats, setThinking, setLastThought, setPosition, addToInventory, removeFromInventory } = sim;
+      const { updateStats, setThinking, setLastThought, setPosition, setTravelTarget, addToInventory, removeFromInventory } = sim;
       const { addBlock, removeBlock, addEntity, removeEntity } = world;
-      const { stats, isThinking } = sim;
+      const { stats, isThinking, travelTarget } = sim;
 
       const newHunger = Math.max(0, stats.hunger - 1);
       updateStats({ hunger: newHunger });
+
+      if (travelTarget) {
+        const [cx, cy, cz] = sim.position;
+        const [tx, ty, tz] = travelTarget;
+        const dx = tx - cx;
+        const dy = ty - cy;
+        const dz = tz - cz;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (dist <= TRAVEL_SPEED) {
+          setPosition([tx, ty, tz]);
+          setTravelTarget(null);
+          const travelCost = Math.ceil(dist);
+          updateStats({
+            energy: Math.max(0, stats.energy - travelCost * ENERGY_PER_BLOCK),
+            hunger: Math.max(0, newHunger - travelCost * HUNGER_PER_BLOCK),
+          });
+          outcomesRef.current.push(`- travel: arrived at [${tx}, ${ty}, ${tz}] (cost: ${travelCost * ENERGY_PER_BLOCK} energy, ${travelCost * HUNGER_PER_BLOCK} hunger)`);
+        } else {
+          const ratio = TRAVEL_SPEED / dist;
+          const nx = cx + dx * ratio;
+          const ny = cy + dy * ratio;
+          const nz = cz + dz * ratio;
+          setPosition([Math.round(nx * 10) / 10, Math.round(ny * 10) / 10, Math.round(nz * 10) / 10]);
+          updateStats({
+            energy: Math.max(0, stats.energy - TRAVEL_SPEED * ENERGY_PER_BLOCK),
+            hunger: Math.max(0, newHunger - TRAVEL_SPEED * HUNGER_PER_BLOCK),
+          });
+          const remaining = Math.round(dist - TRAVEL_SPEED);
+          outcomesRef.current.push(`- travel: walking toward [${tx}, ${ty}, ${tz}], ~${remaining} blocks left (cost: ${TRAVEL_SPEED * ENERGY_PER_BLOCK} energy, ${TRAVEL_SPEED * HUNGER_PER_BLOCK} hunger)`);
+        }
+        return;
+      }
 
       if (world.entities.length < 5 && Math.random() < 0.3) {
         const simPos = sim.position;
@@ -124,8 +161,21 @@ export default function SimLoop() {
                 case 'move_to': {
                   const parts = parseNumbers(args);
                   if (parts.length >= 3 && parts.every(n => !isNaN(n))) {
-                    setPosition([parts[0], parts[1], parts[2]]);
-                    outcomesRef.current.push(`- move_to: moved to [${parts[0]}, ${parts[1]}, ${parts[2]}]`);
+                    const [mx, my, mz] = parts;
+                    const [cx, cy, cz] = useSimStore.getState().position;
+                    const dist = Math.sqrt((mx-cx)**2 + (my-cy)**2 + (mz-cz)**2);
+                    if (dist <= TRAVEL_SPEED) {
+                      setPosition([mx, my, mz]);
+                      const cost = Math.ceil(dist);
+                      updateStats({
+                        energy: Math.max(0, useSimStore.getState().stats.energy - cost * ENERGY_PER_BLOCK),
+                        hunger: Math.max(0, useSimStore.getState().stats.hunger - cost * HUNGER_PER_BLOCK),
+                      });
+                      outcomesRef.current.push(`- move_to: walked to [${mx}, ${my}, ${mz}] (${cost} blocks)`);
+                    } else {
+                      setTravelTarget([mx, my, mz]);
+                      outcomesRef.current.push(`- move_to: started walking to [${mx}, ${my}, ${mz}] (~${Math.round(dist)} blocks away)`);
+                    }
                   }
                   break;
                 }

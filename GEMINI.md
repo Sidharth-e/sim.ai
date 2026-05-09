@@ -12,6 +12,7 @@ Autonomous AI Sim living in a 3D voxel-based "God View" simulation.
 - **AI Logic:** [LangChain](https://js.langchain.com/), [LangGraph](https://langchain-ai.github.io/langgraphjs/), Model Factory for LLM abstraction (Gemini, OpenAI, Azure, Claude, Ollama).
 - **Database:** [MongoDB](https://www.mongodb.com/) (Persistence & Semantic Memory with Vector Search).
 - **State Management:** Zustand for client-side state; MongoDB for server-side persistence.
+- **Time System:** Custom tick-based game clock with dynamic sunrise/sunset and seasonal day-length variation.
 
 ## Getting Started
 
@@ -63,10 +64,13 @@ OLLAMA_MODEL=qwen2.5-coder:14b
 - **Tools:** Define agent tools in `src/lib/ai/tools.ts`.
 - **Orchestration:** Use LangGraph (specifically `createReactAgent`) for agent execution in `src/lib/ai/agent.ts`.
 - **Tick Loop:** The autonomous cycle is triggered via `POST /api/agent/tick`.
+- **Recursion Limit:** The agent has a `recursionLimit` of 100 to handle complex multi-step reasoning.
 
 ### 3D & World
 
 - **Voxel World:** Managed in `src/components/world/VoxelWorld.tsx` using `InstancedMesh` for performance.
+- **Procedural Generation:** World is generated using 2D Perlin-like noise with biomes: Plains, Forest, Mountain, and Water.
+- **Lighting:** Dynamic day/night cycle using dynamic `Sky` shader, `hemisphereLight`, and `directionalLight` with shadow mapping.
 - **Pathfinding:** Use the A* implementation in `src/lib/world/pathfinding.ts`.
 
 ## Project Structure
@@ -74,7 +78,7 @@ OLLAMA_MODEL=qwen2.5-coder:14b
 - `src/app/`: Next.js App Router (pages and API routes).
 - `src/components/`: React components (UI and 3D world).
 - `src/lib/`: Core logic, utilities, AI agent, and database models.
-- `src/store/`: Zustand state stores.
+- `src/store/`: Zustand state stores (`useSimStore`, `useWorldStore`, `useTimeStore`).
 - `docs/`: Design specs and planning documents.
 
 ## Testing
