@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { Sky, MapControls } from '@react-three/drei';
 import { useWorldStore } from '@/store/useWorldStore';
 import { useSimStore } from '@/store/useSimStore';
+import { useTimeStore } from '@/store/useTimeStore';
 import { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -341,8 +342,105 @@ function WaterSurface() {
   );
 }
 
+function useSunPosition(): [number, number, number] {
+  const hour = useTimeStore((s) => s.hour);
+  const minute = useTimeStore((s) => s.minute);
+  const getSunrise = useTimeStore((s) => s.getSunrise);
+  const getSunset = useTimeStore((s) => s.getSunset);
+
+  return useMemo(() => {
+    const timeDecimal = hour + minute / 60;
+    const sunrise = getSunrise();
+    const sunset = getSunset();
+    const dayLength = sunset - sunrise;
+    const progress = (timeDecimal - sunrise) / dayLength;
+
+    const angle = progress * Math.PI;
+    const sunY = Math.sin(angle) * 200;
+    const sunX = Math.cos(angle) * 200;
+    const sunZ = 150;
+
+    return [sunX, sunY, sunZ];
+  }, [hour, minute, getSunrise, getSunset]);
+}
+
+function useLightingParams() {
+  const getSunProgress = useTimeStore((s) => s.getSunProgress);
+
+  return useMemo(() => {
+    const progress = getSunProgress();
+
+    if (progress < -0.05) {
+      return { ambient: 0.08, sun: 0.0, fogColor: '#0a0a1a', skyTurbidity: 20, skyRayleigh: 0.1, hemiSky: '#0a0a2a', hemiGround: '#0a0a0a' };
+    }
+    if (progress < 0.08) {
+      const t = (progress + 0.05) / 0.13;
+      return {
+        ambient: 0.08 + t * 0.15,
+        sun: t * 0.8,
+        fogColor: lerpColor('#0a0a1a', '#f0a060', t),
+        skyTurbidity: 20 - t * 14,
+        skyRayleigh: 0.1 + t * 2.5,
+        hemiSky: lerpColor('#0a0a2a', '#ff9040', t),
+        hemiGround: lerpColor('#0a0a0a', '#4a3a20', t),
+      };
+    }
+    if (progress < 0.2) {
+      const t = (progress - 0.08) / 0.12;
+      return {
+        ambient: 0.23 + t * 0.12,
+        sun: 0.8 + t * 1.0,
+        fogColor: lerpColor('#f0a060', '#a7d3f5', t),
+        skyTurbidity: 6,
+        skyRayleigh: 1.5,
+        hemiSky: lerpColor('#ff9040', '#87ceeb', t),
+        hemiGround: lerpColor('#4a3a20', '#4a7a3d', t),
+      };
+    }
+    if (progress < 0.8) {
+      return { ambient: 0.35, sun: 1.8, fogColor: '#a7d3f5', skyTurbidity: 6, skyRayleigh: 1.5, hemiSky: '#87ceeb', hemiGround: '#4a7a3d' };
+    }
+    if (progress < 0.92) {
+      const t = (progress - 0.8) / 0.12;
+      return {
+        ambient: 0.35 - t * 0.12,
+        sun: 1.8 - t * 1.0,
+        fogColor: lerpColor('#a7d3f5', '#e06030', t),
+        skyTurbidity: 6 + t * 4,
+        skyRayleigh: 1.5 - t * 0.8,
+        hemiSky: lerpColor('#87ceeb', '#e06030', t),
+        hemiGround: lerpColor('#4a7a3d', '#3a2a10', t),
+      };
+    }
+    if (progress <= 1.05) {
+      const t = (progress - 0.92) / 0.13;
+      return {
+        ambient: 0.23 - t * 0.15,
+        sun: 0.8 - t * 0.8,
+        fogColor: lerpColor('#e06030', '#0a0a1a', t),
+        skyTurbidity: 10 + t * 10,
+        skyRayleigh: 0.7 - t * 0.6,
+        hemiSky: lerpColor('#e06030', '#0a0a2a', t),
+        hemiGround: lerpColor('#3a2a10', '#0a0a0a', t),
+      };
+    }
+    return { ambient: 0.08, sun: 0.0, fogColor: '#0a0a1a', skyTurbidity: 20, skyRayleigh: 0.1, hemiSky: '#0a0a2a', hemiGround: '#0a0a0a' };
+  }, [getSunProgress]);
+}
+
+function lerpColor(a: string, b: string, t: number): string {
+  const ca = parseInt(a.slice(1), 16);
+  const cb = parseInt(b.slice(1), 16);
+  const r = Math.round(((ca >> 16) & 0xff) * (1 - t) + ((cb >> 16) & 0xff) * t);
+  const g = Math.round(((ca >> 8) & 0xff) * (1 - t) + ((cb >> 8) & 0xff) * t);
+  const bl = Math.round((ca & 0xff) * (1 - t) + (cb & 0xff) * t);
+  return `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0')}`;
+}
+
 export default function VoxelWorld() {
   const entities = useWorldStore((state) => state.entities);
+  const sunPos = useSunPosition();
+  const lighting = useLightingParams();
 
   return (
     <Canvas
@@ -351,19 +449,19 @@ export default function VoxelWorld() {
       gl={{ antialias: true }}
     >
       <Sky
-        sunPosition={[200, 100, 150]}
-        turbidity={6}
-        rayleigh={1.5}
+        sunPosition={sunPos}
+        turbidity={lighting.skyTurbidity}
+        rayleigh={lighting.skyRayleigh}
         mieCoefficient={0.005}
         mieDirectionalG={0.8}
       />
 
-      <fog attach="fog" args={['#a7d3f5', 200, 500]} />
+      <fog attach="fog" args={[lighting.fogColor, 200, 500]} />
 
-      <ambientLight intensity={0.35} />
+      <ambientLight intensity={lighting.ambient} />
       <directionalLight
-        position={[80, 100, 60]}
-        intensity={1.8}
+        position={sunPos}
+        intensity={lighting.sun}
         castShadow
         shadow-mapSize-width={4096}
         shadow-mapSize-height={4096}
@@ -373,7 +471,7 @@ export default function VoxelWorld() {
         shadow-camera-top={200}
         shadow-camera-bottom={-200}
       />
-      <hemisphereLight args={['#87ceeb', '#4a7a3d', 0.25]} />
+      <hemisphereLight args={[lighting.hemiSky, lighting.hemiGround, 0.25]} />
 
       <MapControls
         maxPolarAngle={Math.PI / 2.1}
