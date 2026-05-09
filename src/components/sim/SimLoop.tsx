@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSimStore } from '@/store/useSimStore';
 import { useWorldStore } from '@/store/useWorldStore';
 import { BLUEPRINTS, CRAFTABLE_ITEMS, GATHERABLE_RESOURCES } from '@/lib/ai/blueprints';
@@ -22,6 +22,8 @@ export default function SimLoop() {
     removeFromInventory
   } = useSimStore();
   const { addBlock, removeBlock, addEntity, removeEntity } = useWorldStore();
+  const tickRef = useRef(0);
+  const outcomesRef = useRef<string[]>([]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -48,8 +50,15 @@ export default function SimLoop() {
 
       if (newHunger < 95 && !isThinking) {
         setThinking(true);
+        tickRef.current += 1;
+        const currentTick = tickRef.current;
+        const prevOutcomes = outcomesRef.current.length > 0
+          ? outcomesRef.current.join('\n')
+          : undefined;
+        outcomesRef.current = [];
+
         try {
-          console.log('[SimLoop] Triggering agent tick...');
+          console.log(`[SimLoop] Tick ${currentTick} — triggering agent`);
 
           const tickWorldState = {
             blocks: useWorldStore.getState().blocks,
@@ -63,8 +72,10 @@ export default function SimLoop() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              prompt: `I am a Sim in a voxel world. My hunger is ${newHunger}%. I need to find food or build a shelter. I can move and place blocks. What should I do?`,
-              worldState: tickWorldState
+              prompt: `Tick ${currentTick}. Status — Hunger: ${newHunger}%, Energy: ${stats.energy}%, Happiness: ${stats.happiness}%. Position: [${state.position.join(', ')}]. Decide your next actions autonomously.`,
+              worldState: tickWorldState,
+              tickNumber: currentTick,
+              previousOutcomes: prevOutcomes,
             })
           });
           const data = await res.json();
@@ -83,12 +94,17 @@ export default function SimLoop() {
                   if ((inv.cooked_meat || 0) >= 1) {
                     removeFromInventory('cooked_meat', 1);
                     updateStats({ hunger: Math.min(100, cur + 30) });
+                    outcomesRef.current.push('- eat: consumed cooked_meat, hunger +30');
                   } else if ((inv.bread || 0) >= 1) {
                     removeFromInventory('bread', 1);
                     updateStats({ hunger: Math.min(100, cur + 20) });
+                    outcomesRef.current.push('- eat: consumed bread, hunger +20');
                   } else if ((inv.raw_meat || 0) >= 1) {
                     removeFromInventory('raw_meat', 1);
                     updateStats({ hunger: Math.min(100, cur + 10) });
+                    outcomesRef.current.push('- eat: consumed raw_meat, hunger +10');
+                  } else {
+                    outcomesRef.current.push('- eat: FAILED — no food in inventory');
                   }
                   break;
                 }
@@ -97,6 +113,7 @@ export default function SimLoop() {
                   const parts = parseNumbers(args);
                   if (parts.length >= 3 && parts.every(n => !isNaN(n))) {
                     setPosition([parts[0], parts[1], parts[2]]);
+                    outcomesRef.current.push(`- move_to: moved to [${parts[0]}, ${parts[1]}, ${parts[2]}]`);
                   }
                   break;
                 }
@@ -107,6 +124,7 @@ export default function SimLoop() {
                   const type = rawParts[3]?.trim().replace(/['"]/g, '') || 'wood';
                   if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
                     addBlock([x, y, z], type);
+                    outcomesRef.current.push(`- place_block: placed ${type} at [${x},${y},${z}]`);
                   }
                   break;
                 }
@@ -115,6 +133,7 @@ export default function SimLoop() {
                   const parts = parseNumbers(args);
                   if (parts.length >= 3 && parts.every(n => !isNaN(n))) {
                     removeBlock([parts[0], parts[1], parts[2]]);
+                    outcomesRef.current.push(`- remove_block: removed at [${parts[0]},${parts[1]},${parts[2]}]`);
                   }
                   break;
                 }
@@ -135,7 +154,9 @@ export default function SimLoop() {
                       removeBlock(b.pos);
                       if (b.type === 'wood') woodCount++;
                     }
-                    addToInventory('wood', Math.max(woodCount, 1));
+                    const gained = Math.max(woodCount, 1);
+                    addToInventory('wood', gained);
+                    outcomesRef.current.push(`- cut_tree at [${tx},${ty},${tz}]: got ${gained} wood`);
                   }
                   break;
                 }
@@ -144,16 +165,24 @@ export default function SimLoop() {
                   const id = args.trim().replace(/['"]/g, '');
                   removeEntity(id);
                   addToInventory('raw_meat', 1);
+                  outcomesRef.current.push(`- hunt: killed ${id}, got 1 raw_meat`);
                   break;
                 }
 
                 case 'build': {
                   const type = args.trim().replace(/['"]/g, '');
                   const blueprint = BLUEPRINTS[type];
-                  if (!blueprint) break;
+                  if (!blueprint) {
+                    outcomesRef.current.push(`- build: FAILED — unknown blueprint '${type}'`);
+                    break;
+                  }
 
                   const inv = useSimStore.getState().inventory;
-                  if (!hasResources(inv, blueprint.cost)) break;
+                  if (!hasResources(inv, blueprint.cost)) {
+                    const needed = Object.entries(blueprint.cost).map(([k, v]) => `${v} ${k}`).join(', ');
+                    outcomesRef.current.push(`- build(${type}): FAILED — need ${needed}`);
+                    break;
+                  }
 
                   for (const [item, amount] of Object.entries(blueprint.cost)) {
                     removeFromInventory(item, amount);
@@ -171,6 +200,7 @@ export default function SimLoop() {
                       baseZ + block.offset[2],
                     ], block.type);
                   }
+                  outcomesRef.current.push(`- build(${type}): SUCCESS — placed ${blueprint.blocks.length} blocks`);
                   break;
                 }
 
@@ -179,14 +209,21 @@ export default function SimLoop() {
                   const itemName = rawParts[0];
                   const qty = rawParts[1] ? parseInt(rawParts[1]) : 1;
                   const recipe = CRAFTABLE_ITEMS[itemName];
-                  if (!recipe) break;
+                  if (!recipe) {
+                    outcomesRef.current.push(`- craft: FAILED — unknown recipe '${itemName}'`);
+                    break;
+                  }
 
                   const inv = useSimStore.getState().inventory;
                   const scaledCost: Record<string, number> = {};
                   for (const [k, v] of Object.entries(recipe.cost)) {
                     scaledCost[k] = v * qty;
                   }
-                  if (!hasResources(inv, scaledCost)) break;
+                  if (!hasResources(inv, scaledCost)) {
+                    const needed = Object.entries(scaledCost).map(([k, v]) => `${v} ${k}`).join(', ');
+                    outcomesRef.current.push(`- craft(${itemName}): FAILED — need ${needed}`);
+                    break;
+                  }
 
                   for (const [item, amount] of Object.entries(scaledCost)) {
                     removeFromInventory(item, amount);
@@ -194,6 +231,8 @@ export default function SimLoop() {
                   for (const [item, amount] of Object.entries(recipe.yields)) {
                     addToInventory(item, amount * qty);
                   }
+                  const yieldsStr = Object.entries(recipe.yields).map(([k, v]) => `${v * qty} ${k}`).join(', ');
+                  outcomesRef.current.push(`- craft(${itemName} x${qty}): SUCCESS — got ${yieldsStr}`);
                   break;
                 }
 
@@ -202,19 +241,27 @@ export default function SimLoop() {
                   const gatherType = rawParts[0];
                   const gx = Number(rawParts[1]), gy = Number(rawParts[2]), gz = Number(rawParts[3]);
                   const resource = GATHERABLE_RESOURCES[gatherType];
-                  if (!resource || isNaN(gx) || isNaN(gy) || isNaN(gz)) break;
+                  if (!resource || isNaN(gx) || isNaN(gy) || isNaN(gz)) {
+                    outcomesRef.current.push(`- gather(${rawParts[0]}): FAILED — invalid args`);
+                    break;
+                  }
 
                   const ws = useWorldStore.getState();
                   const targetBlock = ws.blocks.find(b =>
                     b.pos[0] === gx && b.pos[1] === gy && b.pos[2] === gz &&
                     b.type === resource.blockType
                   );
-                  if (!targetBlock) break;
+                  if (!targetBlock) {
+                    outcomesRef.current.push(`- gather(${gatherType}): FAILED — no ${resource.blockType} at [${gx},${gy},${gz}]`);
+                    break;
+                  }
 
                   removeBlock([gx, gy, gz]);
                   for (const [item, amount] of Object.entries(resource.yields)) {
                     addToInventory(item, amount);
                   }
+                  const yieldsStr = Object.entries(resource.yields).map(([k, v]) => `${v} ${k}`).join(', ');
+                  outcomesRef.current.push(`- gather(${gatherType}): SUCCESS — got ${yieldsStr}`);
                   break;
                 }
 
@@ -238,6 +285,7 @@ export default function SimLoop() {
                       addToInventory(b.type, 1);
                     }
                   }
+                  outcomesRef.current.push(`- demolish: removed ${toRemove.length} blocks`);
                   break;
                 }
 
@@ -321,9 +369,17 @@ export default function SimLoop() {
                   if ((inv.raw_meat || 0) >= 1 && hasCampfire) {
                     removeFromInventory('raw_meat', 1);
                     addToInventory('cooked_meat', 1);
+                    outcomesRef.current.push('- cook: SUCCESS — raw_meat → cooked_meat');
+                  } else if (!hasCampfire) {
+                    outcomesRef.current.push('- cook: FAILED — no campfire nearby');
+                  } else {
+                    outcomesRef.current.push('- cook: FAILED — no raw_meat in inventory');
                   }
                   break;
                 }
+
+                case 'save_learning':
+                  break;
               }
             }
           }
