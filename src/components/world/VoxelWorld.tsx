@@ -93,54 +93,67 @@ function SimCharacter() {
 
   return (
     <group position={position}>
-      {/* Head */}
-      <mesh position={[0, 1.75, 0]} castShadow>
-        <boxGeometry args={[0.5, 0.5, 0.5]} />
-        <meshStandardMaterial color="#d4a574" />
+      {/* Beacon pillar so sim is visible from far away */}
+      <mesh position={[0, 6, 0]}>
+        <boxGeometry args={[0.15, 8, 0.15]} />
+        <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={0.4} transparent opacity={0.6} />
       </mesh>
-      {/* Hair */}
-      <mesh position={[0, 2.02, 0]} castShadow>
-        <boxGeometry args={[0.52, 0.06, 0.52]} />
-        <meshStandardMaterial color="#4a2c0a" />
+      <mesh position={[0, 10.5, 0]}>
+        <boxGeometry args={[0.8, 0.8, 0.8]} />
+        <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={0.6} />
       </mesh>
-      {/* Body */}
-      <mesh position={[0, 1.125, 0]} castShadow>
-        <boxGeometry args={[0.5, 0.75, 0.3]} />
-        <meshStandardMaterial color="#0ea5e9" />
-      </mesh>
-      {/* Left Arm */}
-      <mesh position={[-0.4, 1.125, 0]} castShadow>
-        <boxGeometry args={[0.25, 0.75, 0.25]} />
-        <meshStandardMaterial color="#0ea5e9" />
-      </mesh>
-      {/* Right Arm */}
-      <mesh position={[0.4, 1.125, 0]} castShadow>
-        <boxGeometry args={[0.25, 0.75, 0.25]} />
-        <meshStandardMaterial color="#0ea5e9" />
-      </mesh>
-      {/* Left Leg */}
-      <mesh position={[-0.13, 0.375, 0]} castShadow>
-        <boxGeometry args={[0.25, 0.75, 0.25]} />
-        <meshStandardMaterial color="#1e3a5f" />
-      </mesh>
-      {/* Right Leg */}
-      <mesh position={[0.13, 0.375, 0]} castShadow>
-        <boxGeometry args={[0.25, 0.75, 0.25]} />
-        <meshStandardMaterial color="#1e3a5f" />
-      </mesh>
+
+      <group scale={1.4}>
+        {/* Head */}
+        <mesh position={[0, 1.75, 0]} castShadow>
+          <boxGeometry args={[0.5, 0.5, 0.5]} />
+          <meshStandardMaterial color="#d4a574" />
+        </mesh>
+        {/* Hair */}
+        <mesh position={[0, 2.02, 0]} castShadow>
+          <boxGeometry args={[0.52, 0.06, 0.52]} />
+          <meshStandardMaterial color="#4a2c0a" />
+        </mesh>
+        {/* Body */}
+        <mesh position={[0, 1.125, 0]} castShadow>
+          <boxGeometry args={[0.5, 0.75, 0.3]} />
+          <meshStandardMaterial color="#0ea5e9" />
+        </mesh>
+        {/* Left Arm */}
+        <mesh position={[-0.4, 1.125, 0]} castShadow>
+          <boxGeometry args={[0.25, 0.75, 0.25]} />
+          <meshStandardMaterial color="#0ea5e9" />
+        </mesh>
+        {/* Right Arm */}
+        <mesh position={[0.4, 1.125, 0]} castShadow>
+          <boxGeometry args={[0.25, 0.75, 0.25]} />
+          <meshStandardMaterial color="#0ea5e9" />
+        </mesh>
+        {/* Left Leg */}
+        <mesh position={[-0.13, 0.375, 0]} castShadow>
+          <boxGeometry args={[0.25, 0.75, 0.25]} />
+          <meshStandardMaterial color="#1e3a5f" />
+        </mesh>
+        {/* Right Leg */}
+        <mesh position={[0.13, 0.375, 0]} castShadow>
+          <boxGeometry args={[0.25, 0.75, 0.25]} />
+          <meshStandardMaterial color="#1e3a5f" />
+        </mesh>
+      </group>
+
       {/* Thinking indicator */}
       {isThinking && (
         <group>
-          <mesh position={[0.3, 2.2, 0]}>
-            <sphereGeometry args={[0.08, 8, 8]} />
+          <mesh position={[0.4, 3.2, 0]}>
+            <sphereGeometry args={[0.1, 8, 8]} />
             <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.5} />
           </mesh>
-          <mesh position={[0.5, 2.45, 0]}>
-            <sphereGeometry args={[0.12, 8, 8]} />
+          <mesh position={[0.65, 3.6, 0]}>
+            <sphereGeometry args={[0.15, 8, 8]} />
             <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.5} />
           </mesh>
-          <mesh position={[0.6, 2.75, 0]}>
-            <sphereGeometry args={[0.2, 12, 12]} />
+          <mesh position={[0.8, 4.1, 0]}>
+            <sphereGeometry args={[0.25, 12, 12]} />
             <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.3} />
           </mesh>
         </group>
@@ -259,11 +272,14 @@ export default function VoxelWorld() {
 
       <OrbitControls
         maxPolarAngle={Math.PI / 2.1}
-        minDistance={8}
+        minDistance={5}
         maxDistance={120}
         enableDamping
-        dampingFactor={0.05}
-        target={[0, 2, 0]}
+        dampingFactor={0.08}
+        rotateSpeed={0.8}
+        zoomSpeed={1.5}
+        panSpeed={1.2}
+        target={[0, 3, 0]}
       />
 
       <Terrain />
