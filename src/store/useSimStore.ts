@@ -9,11 +9,13 @@ interface SimStats {
 interface SimState {
   stats: SimStats;
   position: [number, number, number];
+  travelTarget: [number, number, number] | null;
   isThinking: boolean;
   lastThought: string;
   inventory: Record<string, number>;
   updateStats: (delta: Partial<SimStats>) => void;
   setPosition: (pos: [number, number, number]) => void;
+  setTravelTarget: (pos: [number, number, number] | null) => void;
   setThinking: (thinking: boolean) => void;
   setLastThought: (thought: string) => void;
   addToInventory: (item: string, amount: number) => void;
@@ -23,6 +25,7 @@ interface SimState {
 export const useSimStore = create<SimState>((set) => ({
   stats: { hunger: 90, energy: 100, happiness: 100 },
   position: [0, 6, 0],
+  travelTarget: null,
   isThinking: false,
   lastThought: '',
   inventory: { wood: 0, stone: 0, dirt: 0, sand: 0, raw_meat: 0, cooked_meat: 0, plank: 0, stick: 0, plant_fiber: 0, coal: 0, wheat: 0, bread: 0, rope: 0, stone_tool: 0, torch_item: 0 },
@@ -30,6 +33,7 @@ export const useSimStore = create<SimState>((set) => ({
     stats: { ...state.stats, ...delta }
   })),
   setPosition: (position) => set({ position }),
+  setTravelTarget: (travelTarget) => set({ travelTarget }),
   setThinking: (isThinking) => set({ isThinking }),
   setLastThought: (lastThought) => set({ lastThought }),
   addToInventory: (item, amount) => set((state) => ({
