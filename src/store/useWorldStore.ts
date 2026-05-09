@@ -22,7 +22,13 @@ interface WorldState {
 }
 
 export const useWorldStore = create<WorldState>((set) => ({
-  blocks: [{ pos: [0, 0, 0], type: 'grass' }],
+  blocks: [
+    { pos: [0, 0, 0], type: 'grass' },
+    { pos: [2, 0, 2], type: 'tree' },
+    { pos: [-3, 0, 1], type: 'tree' },
+    { pos: [1, 0, -4], type: 'tree' },
+    { pos: [5, 0, 0], type: 'tree' },
+  ],
   entities: [],
   addBlock: (pos, type) => set((state) => ({ 
     blocks: [...state.blocks, { pos, type }] 

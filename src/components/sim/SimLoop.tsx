@@ -25,7 +25,7 @@ export default function SimLoop() {
 
       // Random spawning of entities
       const worldState = useWorldStore.getState();
-      if (worldState.entities.length < 3 && Math.random() < 0.1) {
+      if (worldState.entities.length < 5 && Math.random() < 0.3) {
         const simPos = state.position;
         addEntity({
           id: Math.random().toString(36).substring(2, 9),
@@ -40,7 +40,7 @@ export default function SimLoop() {
       }
 
       // 2. If hungry and not thinking, trigger agent
-      if (newHunger < 85 && !isThinking) {
+      if (newHunger < 95 && !isThinking) {
         setThinking(true);
         try {
           console.log('[SimLoop] Triggering agent tick...');

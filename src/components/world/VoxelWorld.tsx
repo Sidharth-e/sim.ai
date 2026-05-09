@@ -4,8 +4,19 @@ import { OrbitControls, Box, Grid, Sphere } from '@react-three/drei';
 import { useWorldStore } from '@/store/useWorldStore';
 import { useSimStore } from '@/store/useSimStore';
 
+const getBlockColor = (type: string) => {
+  switch (type) {
+    case 'grass': return 'green';
+    case 'tree': return 'saddlebrown';
+    case 'wood': return 'peru';
+    case 'campfire': return 'orange';
+    default: return 'gray';
+  }
+};
+
 export default function VoxelWorld() {
   const blocks = useWorldStore((state) => state.blocks);
+  const entities = useWorldStore((state) => state.entities);
   const simPosition = useSimStore((state) => state.position);
 
   return (
@@ -20,9 +31,17 @@ export default function VoxelWorld() {
         <meshStandardMaterial color="red" />
       </Box>
 
+      {/* Entities (Animals) */}
+      {entities.map((entity) => (
+        <Sphere key={entity.id} position={entity.pos} args={[0.4, 16, 16]}>
+          <meshStandardMaterial color="pink" />
+        </Sphere>
+      ))}
+
+      {/* Blocks */}
       {blocks.map((block, i) => (
         <Box key={i} position={block.pos}>
-          <meshStandardMaterial color={block.type === 'grass' ? 'green' : 'brown'} />
+          <meshStandardMaterial color={getBlockColor(block.type)} />
         </Box>
       ))}
     </Canvas>
