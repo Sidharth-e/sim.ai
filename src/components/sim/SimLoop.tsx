@@ -14,32 +14,24 @@ function hasResources(inventory: Record<string, number>, cost: Record<string, nu
 }
 
 export default function SimLoop() {
-  const {
-    updateStats,
-    setThinking,
-    setLastThought,
-    setPosition,
-    addToInventory,
-    removeFromInventory
-  } = useSimStore();
-  const { addBlock, removeBlock, addEntity, removeEntity } = useWorldStore();
-  const { tickTime } = useTimeStore();
   const tickRef = useRef(0);
   const outcomesRef = useRef<string[]>([]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      tickTime();
+      useTimeStore.getState().tickTime();
 
-      const state = useSimStore.getState();
-      const { stats, isThinking } = state;
+      const sim = useSimStore.getState();
+      const world = useWorldStore.getState();
+      const { updateStats, setThinking, setLastThought, setPosition, addToInventory, removeFromInventory } = sim;
+      const { addBlock, removeBlock, addEntity, removeEntity } = world;
+      const { stats, isThinking } = sim;
 
       const newHunger = Math.max(0, stats.hunger - 1);
       updateStats({ hunger: newHunger });
 
-      const worldState = useWorldStore.getState();
-      if (worldState.entities.length < 5 && Math.random() < 0.3) {
-        const simPos = state.position;
+      if (world.entities.length < 5 && Math.random() < 0.3) {
+        const simPos = sim.position;
         addEntity({
           id: Math.random().toString(36).substring(2, 9),
           type: 'animal',
@@ -65,9 +57,10 @@ export default function SimLoop() {
           console.log(`[SimLoop] Tick ${currentTick} — triggering agent`);
 
           const VIEW_RADIUS = 15;
-          const [px, py, pz] = state.position;
-          const allBlocks = useWorldStore.getState().blocks;
-          const allEntities = useWorldStore.getState().entities;
+          const [px, py, pz] = sim.position;
+          const freshWorld = useWorldStore.getState();
+          const allBlocks = freshWorld.blocks;
+          const allEntities = freshWorld.entities;
 
           const nearbyBlocks = allBlocks.filter(b =>
             Math.abs(b.pos[0] - px) <= VIEW_RADIUS &&
@@ -82,9 +75,9 @@ export default function SimLoop() {
           const tickWorldState = {
             blocks: nearbyBlocks,
             entities: nearbyEntities,
-            inventory: state.inventory,
-            position: state.position,
-            stats: { ...state.stats, hunger: newHunger }
+            inventory: sim.inventory,
+            position: sim.position,
+            stats: { ...sim.stats, hunger: newHunger }
           };
 
           const res = await fetch('/api/agent/tick', {
@@ -411,7 +404,7 @@ export default function SimLoop() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [updateStats, setThinking]);
+  }, []);
 
   return null;
 }

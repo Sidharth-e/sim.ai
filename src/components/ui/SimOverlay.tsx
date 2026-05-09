@@ -50,7 +50,7 @@ function formatHour(h: number): string {
 
 export default function SimOverlay() {
   const { stats, isThinking, lastThought, inventory } = useSimStore();
-  const { hour, minute, day, year, getMonthName, getTimeString, getSunrise, getSunset, isDaytime } = useTimeStore();
+  const { hour, minute, second, day, year, getMonthName, getTimeString, getSunrise, getSunset, isDaytime } = useTimeStore();
 
   const sunriseStr = formatHour(Math.round(getSunrise()));
   const sunsetStr = formatHour(Math.round(getSunset()));
