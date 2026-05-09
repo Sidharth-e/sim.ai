@@ -96,6 +96,8 @@ function pruneOld() {
   }
 }
 
+const MAX_MEMORY_CHARS = 8000;
+
 export function buildMemoryContext(): string {
   const knowledge = loadKnowledge();
   const experiences = loadRecentExperiences();
@@ -104,7 +106,12 @@ export function buildMemoryContext(): string {
 
   if (experiences.length > 0) {
     ctx += `### Recent Experiences (last ${experiences.length} ticks)\n`;
-    ctx += experiences.join('\n---\n');
+    let expText = '';
+    for (const exp of experiences) {
+      if (ctx.length + expText.length + exp.length > MAX_MEMORY_CHARS) break;
+      expText += exp + '\n---\n';
+    }
+    ctx += expText || experiences[0].slice(0, 1000) + '\n';
   } else {
     ctx += '### Recent Experiences\n_No experiences yet. Start exploring!_\n';
   }
