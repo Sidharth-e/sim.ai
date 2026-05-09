@@ -6,7 +6,12 @@
       "Bash(curl -s http://localhost:3000)",
       "mcp__plugin_playwright_playwright__browser_navigate",
       "mcp__plugin_playwright_playwright__browser_take_screenshot",
-      "Bash(npx jest *)"
+      "Bash(npx jest *)",
+      "Bash(npm ls *)",
+      "Bash(npm install *)",
+      "Bash(wc -l package-lock.json)",
+      "Bash(head -5 package-lock.json)",
+      "Bash(pnpm install *)"
     ]
   }
 }
