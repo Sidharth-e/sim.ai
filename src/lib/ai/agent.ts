@@ -1,15 +1,15 @@
 import { ModelFactory } from "./model-factory";
-import { createTools } from "./tools";
+import { createTools, AgentWorldState } from "./tools";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 
 /**
  * Runs a single cycle of the LangChain agent.
  * This takes a user input, invokes the agent, and returns the agent's response.
  */
-export async function runAgentCycle(input: string) {
+export async function runAgentCycle(input: string, worldState?: AgentWorldState) {
   try {
     const model = ModelFactory.createModel();
-    const tools = createTools();
+    const tools = createTools(worldState);
 
     // In LangGraph, createReactAgent creates a compiled graph that acts as the agent executor
     const agent = createReactAgent({

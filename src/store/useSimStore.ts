@@ -11,10 +11,13 @@ interface SimState {
   position: [number, number, number];
   isThinking: boolean;
   lastThought: string;
+  inventory: Record<string, number>;
   updateStats: (delta: Partial<SimStats>) => void;
   setPosition: (pos: [number, number, number]) => void;
   setThinking: (thinking: boolean) => void;
   setLastThought: (thought: string) => void;
+  addToInventory: (item: string, amount: number) => void;
+  removeFromInventory: (item: string, amount: number) => void;
 }
 
 export const useSimStore = create<SimState>((set) => ({
@@ -22,10 +25,23 @@ export const useSimStore = create<SimState>((set) => ({
   position: [0, 1, 0],
   isThinking: false,
   lastThought: '',
+  inventory: { wood: 0, raw_meat: 0, cooked_meat: 0 },
   updateStats: (delta) => set((state) => ({
     stats: { ...state.stats, ...delta }
   })),
   setPosition: (position) => set({ position }),
   setThinking: (isThinking) => set({ isThinking }),
   setLastThought: (lastThought) => set({ lastThought }),
+  addToInventory: (item, amount) => set((state) => ({
+    inventory: {
+      ...state.inventory,
+      [item]: (state.inventory[item] || 0) + amount
+    }
+  })),
+  removeFromInventory: (item, amount) => set((state) => ({
+    inventory: {
+      ...state.inventory,
+      [item]: Math.max(0, (state.inventory[item] || 0) - amount)
+    }
+  })),
 }));
