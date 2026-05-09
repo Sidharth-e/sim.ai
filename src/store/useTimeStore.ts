@@ -7,11 +7,12 @@ const MONTH_NAMES = [
 
 const DAYS_PER_MONTH = 30;
 const MONTHS_PER_YEAR = 12;
-const MINUTES_PER_TICK = 1;
+const SECONDS_PER_TICK = 30;
 
 interface TimeState {
   hour: number;
   minute: number;
+  second: number;
   day: number;
   month: number;
   year: number;
@@ -39,13 +40,18 @@ function computeSunset(dayOfYear: number): number {
 export const useTimeStore = create<TimeState>((set, get) => ({
   hour: 8,
   minute: 0,
+  second: 0,
   day: 1,
   month: 3,
   year: 1,
 
   tickTime: () => set((state) => {
-    let { hour, minute, day, month, year } = state;
-    minute += MINUTES_PER_TICK;
+    let { hour, minute, second, day, month, year } = state;
+    second += SECONDS_PER_TICK;
+    if (second >= 60) {
+      minute += Math.floor(second / 60);
+      second = second % 60;
+    }
     if (minute >= 60) {
       hour += Math.floor(minute / 60);
       minute = minute % 60;
@@ -62,7 +68,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       year += Math.floor((month - 1) / MONTHS_PER_YEAR);
       month = ((month - 1) % MONTHS_PER_YEAR) + 1;
     }
-    return { hour, minute, day, month, year };
+    return { hour, minute, second, day, month, year };
   }),
 
   getMonthName: () => MONTH_NAMES[(get().month - 1) % 12],
@@ -74,8 +80,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   getSunset: () => computeSunset(get().getDayOfYear()),
 
   getSunProgress: () => {
-    const { hour, minute } = get();
-    const timeDecimal = hour + minute / 60;
+    const { hour, minute, second } = get();
+    const timeDecimal = hour + minute / 60 + second / 3600;
     const sunrise = get().getSunrise();
     const sunset = get().getSunset();
     if (timeDecimal < sunrise) return -1;
@@ -84,10 +90,10 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   },
 
   getTimeString: () => {
-    const { hour, minute } = get();
+    const { hour, minute, second } = get();
     const h = hour % 12 || 12;
     const ampm = hour < 12 ? 'AM' : 'PM';
-    return `${h}:${minute.toString().padStart(2, '0')} ${ampm}`;
+    return `${h}:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')} ${ampm}`;
   },
 
   getDateString: () => {
