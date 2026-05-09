@@ -10,14 +10,14 @@ import { runAgentCycle } from "@/lib/ai/agent";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { prompt } = body;
+    const { prompt, worldState } = body;
     
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
     console.log(`[Agent API] Triggering agent with prompt: "${prompt}"`);
-    const output = await runAgentCycle(prompt);
+    const output = await runAgentCycle(prompt, worldState);
     
     return NextResponse.json({ 
       success: true,

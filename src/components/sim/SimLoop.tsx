@@ -21,11 +21,21 @@ export default function SimLoop() {
         setThinking(true);
         try {
           console.log('[SimLoop] Triggering agent tick...');
+          
+          const worldState = {
+            blocks: useWorldStore.getState().blocks,
+            entities: useWorldStore.getState().entities,
+            inventory: state.inventory,
+            position: state.position,
+            stats: { ...state.stats, hunger: newHunger }
+          };
+
           const res = await fetch('/api/agent/tick', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              prompt: `I am a Sim in a voxel world. My hunger is ${newHunger}%. I need to find food or build a shelter. I can move and place blocks. What should I do?` 
+              prompt: `I am a Sim in a voxel world. My hunger is ${newHunger}%. I need to find food or build a shelter. I can move and place blocks. What should I do?`,
+              worldState
             }) 
           });
           const data = await res.json();
