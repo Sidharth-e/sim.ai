@@ -34,7 +34,7 @@ export class ModelFactory {
       case 'ollama':
         return new ChatOllama({
           baseUrl: process.env.OLLAMA_BASE_URL || "http://localhost:11434",
-          model: "llama3",
+          model: process.env.OLLAMA_MODEL || "qwen2.5-coder:14b",
         });
       default:
         throw new Error(`Unsupported provider: ${selectedProvider}`);
