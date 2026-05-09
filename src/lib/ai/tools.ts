@@ -16,24 +16,27 @@ export const createTools = (worldState?: AgentWorldState) => [
     name: "place_block",
     description: "Places a block at specified coordinates. Arguments: x, y, z, type. Example: place_block(1, 0, 1, 'wood')",
     func: async (input: string) => {
-      console.log(`[Agent Tool] place_block called with: ${input}`);
-      return `ACTION: place_block(${input})`;
+      const cleanInput = input.replace(/[\[\]]/g, '');
+      console.log(`[Agent Tool] place_block called with: ${cleanInput}`);
+      return `ACTION: place_block(${cleanInput})`;
     },
   }),
   new DynamicTool({
     name: "move_to",
     description: "Moves the Sim to specified coordinates. Arguments: x, y, z. Example: move_to(2, 0, 2)",
     func: async (input: string) => {
-      console.log(`[Agent Tool] move_to called with: ${input}`);
-      return `ACTION: move_to(${input})`;
+      const cleanInput = input.replace(/[\[\]]/g, '');
+      console.log(`[Agent Tool] move_to called with: ${cleanInput}`);
+      return `ACTION: move_to(${cleanInput})`;
     },
   }),
   new DynamicTool({
     name: "cut_tree",
     description: "Cuts a tree at specified coordinates. Arguments: x, y, z. Example: cut_tree(10, 0, 5)",
     func: async (input: string) => {
-      console.log(`[Agent Tool] cut_tree called with: ${input}`);
-      return `ACTION: cut_tree(${input})`;
+      const cleanInput = input.replace(/[\[\]]/g, '');
+      console.log(`[Agent Tool] cut_tree called with: ${cleanInput}`);
+      return `ACTION: cut_tree(${cleanInput})`;
     },
   }),
   new DynamicTool({
