@@ -8,8 +8,13 @@ export default function Home() {
       <SimLoop />
       <VoxelWorld />
       <SimOverlay />
-      <div className="absolute top-4 left-4 text-white p-4 bg-black/50 rounded pointer-events-none">
-        AI Sim Sandbox
+      <div className="absolute top-4 left-4 pointer-events-none z-50">
+        <h1
+          className="text-xl font-black tracking-widest text-white/90 uppercase"
+          style={{ textShadow: '2px 2px 6px rgba(0,0,0,0.8)' }}
+        >
+          SIM.AI
+        </h1>
       </div>
     </main>
   );
