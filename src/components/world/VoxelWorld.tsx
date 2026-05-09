@@ -1,6 +1,6 @@
 'use client';
 import { Canvas } from '@react-three/fiber';
-import { Sky, OrbitControls } from '@react-three/drei';
+import { Sky, MapControls } from '@react-three/drei';
 import { useWorldStore } from '@/store/useWorldStore';
 import { useSimStore } from '@/store/useSimStore';
 import { useRef, useEffect, useMemo } from 'react';
@@ -375,13 +375,13 @@ export default function VoxelWorld() {
       />
       <hemisphereLight args={['#87ceeb', '#4a7a3d', 0.25]} />
 
-      <OrbitControls
+      <MapControls
         maxPolarAngle={Math.PI / 2.1}
         minDistance={5}
         maxDistance={500}
         enableDamping
         dampingFactor={0.08}
-        rotateSpeed={0.8}
+        rotateSpeed={0.5}
         zoomSpeed={1.5}
         panSpeed={1.2}
         target={[0, 3, 0]}
