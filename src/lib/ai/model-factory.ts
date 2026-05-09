@@ -28,7 +28,7 @@ export class ModelFactory {
         });
       case 'gemini':
         return new ChatGoogleGenerativeAI({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.1-flash-lite",
           apiKey: process.env.GOOGLE_API_KEY,
         });
       case 'ollama':
