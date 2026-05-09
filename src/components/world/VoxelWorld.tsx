@@ -4,6 +4,7 @@ import { Sky, OrbitControls } from '@react-three/drei';
 import { useWorldStore } from '@/store/useWorldStore';
 import { useSimStore } from '@/store/useSimStore';
 import { useRef, useEffect, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 const BLOCK_COLORS: Record<string, string> = {
@@ -91,9 +92,98 @@ function SimCharacter() {
   const position = useSimStore((state) => state.position);
   const isThinking = useSimStore((state) => state.isThinking);
 
+  const groupRef = useRef<THREE.Group>(null);
+  const headRef = useRef<THREE.Group>(null);
+  const leftArmRef = useRef<THREE.Group>(null);
+  const rightArmRef = useRef<THREE.Group>(null);
+  const leftLegRef = useRef<THREE.Group>(null);
+  const rightLegRef = useRef<THREE.Group>(null);
+  const bodyRef = useRef<THREE.Group>(null);
+
+  const smoothPos = useRef(new THREE.Vector3(...position));
+  const prevSmoothPos = useRef(new THREE.Vector3(...position));
+  const movePhase = useRef(0);
+  const velocity = useRef(0);
+  const facingAngle = useRef(0);
+
+  useFrame((_, delta) => {
+    const target = new THREE.Vector3(...position);
+
+    // Slower lerp so character visibly walks to destination
+    smoothPos.current.lerp(target, Math.min(1, delta * 2));
+
+    if (groupRef.current) {
+      groupRef.current.position.copy(smoothPos.current);
+    }
+
+    // Measure how far smooth position moved this frame
+    const dx = smoothPos.current.x - prevSmoothPos.current.x;
+    const dz = smoothPos.current.z - prevSmoothPos.current.z;
+    const frameDist = Math.sqrt(dx * dx + dz * dz);
+
+    // Remaining distance to target drives animation intensity
+    const distToTarget = smoothPos.current.distanceTo(target);
+    const isMoving = distToTarget > 0.05;
+    const isRunning = distToTarget > 5;
+    const animSpeed = isRunning ? 12 : 6;
+    const swingAmp = isRunning ? 1.1 : 0.6;
+
+    if (isMoving) {
+      movePhase.current += delta * animSpeed;
+      if (frameDist > 0.001) {
+        const targetAngle = Math.atan2(dx, dz);
+        let angleDiff = targetAngle - facingAngle.current;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        facingAngle.current += angleDiff * Math.min(1, delta * 8);
+      }
+    } else {
+      movePhase.current *= 0.92;
+    }
+
+    const phase = movePhase.current;
+    const t = Date.now() * 0.001;
+
+    // Idle breathing when not moving
+    const breathe = Math.sin(t * 1.5) * 0.015;
+
+    const legSwing = isMoving ? Math.sin(phase) * swingAmp : 0;
+    const armSwing = isMoving ? Math.sin(phase) * swingAmp * 0.8 : Math.sin(t * 0.6) * 0.06;
+    const bodyBob = isMoving
+      ? Math.abs(Math.sin(phase * 2)) * 0.06
+      : breathe;
+    const bodySway = isMoving ? Math.sin(phase) * 0.03 : 0;
+
+    if (leftLegRef.current) leftLegRef.current.rotation.x = legSwing;
+    if (rightLegRef.current) rightLegRef.current.rotation.x = -legSwing;
+    if (leftArmRef.current) leftArmRef.current.rotation.x = -armSwing;
+    if (rightArmRef.current) rightArmRef.current.rotation.x = armSwing;
+
+    if (bodyRef.current) {
+      bodyRef.current.position.y = 1.125 + bodyBob;
+      bodyRef.current.rotation.z = bodySway;
+      bodyRef.current.rotation.y = facingAngle.current;
+    }
+
+    if (headRef.current) {
+      if (isMoving) {
+        headRef.current.rotation.x = Math.sin(phase * 2) * 0.05;
+        headRef.current.rotation.y = 0;
+      } else if (isThinking) {
+        headRef.current.rotation.y = Math.sin(t * 0.8) * 0.3;
+        headRef.current.rotation.x = Math.sin(t * 0.5) * 0.1 - 0.1;
+      } else {
+        headRef.current.rotation.y = Math.sin(t * 0.3) * 0.15;
+        headRef.current.rotation.x = Math.sin(t * 0.2) * 0.05;
+      }
+    }
+
+    prevSmoothPos.current.copy(smoothPos.current);
+  });
+
   return (
-    <group position={position}>
-      {/* Beacon pillar so sim is visible from far away */}
+    <group ref={groupRef}>
+      {/* Beacon pillar */}
       <mesh position={[0, 6, 0]}>
         <boxGeometry args={[0.15, 8, 0.15]} />
         <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={0.4} transparent opacity={0.6} />
@@ -103,42 +193,56 @@ function SimCharacter() {
         <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={0.6} />
       </mesh>
 
-      <group scale={1.4}>
-        {/* Head */}
-        <mesh position={[0, 1.75, 0]} castShadow>
-          <boxGeometry args={[0.5, 0.5, 0.5]} />
-          <meshStandardMaterial color="#d4a574" />
-        </mesh>
-        {/* Hair */}
-        <mesh position={[0, 2.02, 0]} castShadow>
-          <boxGeometry args={[0.52, 0.06, 0.52]} />
-          <meshStandardMaterial color="#4a2c0a" />
-        </mesh>
-        {/* Body */}
-        <mesh position={[0, 1.125, 0]} castShadow>
+      <group ref={bodyRef} position={[0, 1.125, 0]} scale={1.4}>
+        {/* Head — pivot at neck */}
+        <group ref={headRef} position={[0, 0.625, 0]}>
+          <mesh position={[0, 0, 0]} castShadow>
+            <boxGeometry args={[0.5, 0.5, 0.5]} />
+            <meshStandardMaterial color="#d4a574" />
+          </mesh>
+          <mesh position={[0, 0.27, 0]} castShadow>
+            <boxGeometry args={[0.52, 0.06, 0.52]} />
+            <meshStandardMaterial color="#4a2c0a" />
+          </mesh>
+        </group>
+
+        {/* Torso */}
+        <mesh castShadow>
           <boxGeometry args={[0.5, 0.75, 0.3]} />
           <meshStandardMaterial color="#0ea5e9" />
         </mesh>
-        {/* Left Arm */}
-        <mesh position={[-0.4, 1.125, 0]} castShadow>
-          <boxGeometry args={[0.25, 0.75, 0.25]} />
-          <meshStandardMaterial color="#0ea5e9" />
-        </mesh>
-        {/* Right Arm */}
-        <mesh position={[0.4, 1.125, 0]} castShadow>
-          <boxGeometry args={[0.25, 0.75, 0.25]} />
-          <meshStandardMaterial color="#0ea5e9" />
-        </mesh>
-        {/* Left Leg */}
-        <mesh position={[-0.13, 0.375, 0]} castShadow>
-          <boxGeometry args={[0.25, 0.75, 0.25]} />
-          <meshStandardMaterial color="#1e3a5f" />
-        </mesh>
-        {/* Right Leg */}
-        <mesh position={[0.13, 0.375, 0]} castShadow>
-          <boxGeometry args={[0.25, 0.75, 0.25]} />
-          <meshStandardMaterial color="#1e3a5f" />
-        </mesh>
+
+        {/* Left Arm — pivot at shoulder */}
+        <group ref={leftArmRef} position={[-0.4, 0.25, 0]}>
+          <mesh position={[0, -0.25, 0]} castShadow>
+            <boxGeometry args={[0.25, 0.75, 0.25]} />
+            <meshStandardMaterial color="#0ea5e9" />
+          </mesh>
+        </group>
+
+        {/* Right Arm — pivot at shoulder */}
+        <group ref={rightArmRef} position={[0.4, 0.25, 0]}>
+          <mesh position={[0, -0.25, 0]} castShadow>
+            <boxGeometry args={[0.25, 0.75, 0.25]} />
+            <meshStandardMaterial color="#0ea5e9" />
+          </mesh>
+        </group>
+
+        {/* Left Leg — pivot at hip */}
+        <group ref={leftLegRef} position={[-0.13, -0.375, 0]}>
+          <mesh position={[0, -0.375, 0]} castShadow>
+            <boxGeometry args={[0.25, 0.75, 0.25]} />
+            <meshStandardMaterial color="#1e3a5f" />
+          </mesh>
+        </group>
+
+        {/* Right Leg — pivot at hip */}
+        <group ref={rightLegRef} position={[0.13, -0.375, 0]}>
+          <mesh position={[0, -0.375, 0]} castShadow>
+            <boxGeometry args={[0.25, 0.75, 0.25]} />
+            <meshStandardMaterial color="#1e3a5f" />
+          </mesh>
+        </group>
       </group>
 
       {/* Thinking indicator */}
