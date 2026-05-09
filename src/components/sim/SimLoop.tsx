@@ -87,7 +87,7 @@ export default function SimLoop() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              prompt: `Tick ${currentTick}. Status — Hunger: ${newHunger}%, Energy: ${stats.energy}%, Happiness: ${stats.happiness}%. Position: [${state.position.join(', ')}]. Decide your next actions autonomously.`,
+              prompt: `Tick ${currentTick}. A new moment. Observe, decide, act.`,
               worldState: tickWorldState,
               tickNumber: currentTick,
               previousOutcomes: prevOutcomes,

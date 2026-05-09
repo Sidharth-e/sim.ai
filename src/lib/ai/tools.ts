@@ -2,10 +2,11 @@ import { DynamicTool } from "@langchain/core/tools";
 import { BLUEPRINTS, CRAFTABLE_ITEMS, GATHERABLE_RESOURCES } from "./blueprints";
 
 export interface AgentWorldState {
-  blocks?: unknown[];
-  entities?: unknown[];
-  inventory?: unknown[];
-  position?: unknown;
+  blocks?: { pos: number[]; type: string }[];
+  entities?: { id: string; type: string; pos: number[]; health: number }[];
+  inventory?: Record<string, number>;
+  position?: number[];
+  stats?: { hunger: number; energy: number; happiness: number };
 }
 
 const structureList = Object.keys(BLUEPRINTS).join(', ');
@@ -138,37 +139,82 @@ export const createTools = (worldState?: AgentWorldState) => [
     },
   }),
   new DynamicTool({
-    name: "get_world_info",
-    description: "Returns information about the current state of the world including nearby blocks, entities, inventory, and position.",
+    name: "check_self",
+    description: "Check your current status: hunger, energy, happiness, position, and inventory. Always do this first to understand your needs.",
     func: async () => {
-      if (!worldState) {
-        return "The world is a 3D voxel grid. There is a grass block at 0,0,0. You are currently at 0,1,0.";
-      }
-      const { blocks, entities, inventory, position } = worldState;
+      if (!worldState) return "Hunger: 100% | Energy: 100% | Happiness: 100%\nPosition: [0, 0, 0]\nInventory: empty";
+      const s = worldState.stats || { hunger: 100, energy: 100, happiness: 100 };
+      const pos = worldState.position || [0, 0, 0];
+      const inv = worldState.inventory || {};
+      const invStr = Object.entries(inv).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(', ') || 'empty';
+      return `Hunger: ${s.hunger}% | Energy: ${s.energy}% | Happiness: ${s.happiness}%\nPosition: [${pos.join(', ')}]\nInventory: ${invStr}`;
+    },
+  }),
+  new DynamicTool({
+    name: "look_around",
+    description: "Survey your surroundings. Returns summary of nearby block types and any visible creatures. Use to get a general sense of the area.",
+    func: async () => {
+      if (!worldState) return "You see a flat grass world stretching in all directions. Nothing notable nearby.";
+      const blocks = worldState.blocks || [];
+      const entities = worldState.entities || [];
 
       const blockCounts: Record<string, number> = {};
-      const blockArr = (blocks as { pos: number[]; type: string }[]) || [];
-      for (const b of blockArr) {
-        blockCounts[b.type] = (blockCounts[b.type] || 0) + 1;
+      for (const b of blocks) blockCounts[b.type] = (blockCounts[b.type] || 0) + 1;
+      const terrain = Object.entries(blockCounts).map(([t, c]) => `${t}: ${c}`).join(', ') || 'barren';
+
+      const creatures = entities.length > 0
+        ? entities.slice(0, 8).map(e => `${e.type}(${e.id}) at [${e.pos.map(n => Math.round(n)).join(', ')}]`).join('\n  ')
+        : 'none visible';
+
+      const hasCampfire = blocks.some(b => b.type === 'campfire');
+      const hasWater = blocks.some(b => b.type === 'water');
+      const landmarks = [hasCampfire && 'campfire', hasWater && 'water source'].filter(Boolean).join(', ');
+
+      return `Terrain: ${terrain}\nCreatures:\n  ${creatures}\nLandmarks: ${landmarks || 'none'}`;
+    },
+  }),
+  new DynamicTool({
+    name: "search",
+    description: "Search for something specific nearby. Arguments: target — e.g. 'tree', 'animal', 'stone', 'water', 'food', 'campfire', 'wood', 'grass'. Returns locations if found. Example: search('tree')",
+    func: async (input: string) => {
+      const target = input.trim().replace(/['"]/g, '').toLowerCase();
+      if (!worldState) return `No ${target} found nearby.`;
+      const blocks = worldState.blocks || [];
+      const entities = worldState.entities || [];
+
+      if (target === 'animal' || target === 'animals' || target === 'creature') {
+        if (entities.length === 0) return 'No animals found nearby. Try moving to a new area.';
+        return 'Animals found:\n' + entities.slice(0, 10).map(e =>
+          `- ${e.type}(${e.id}) at [${e.pos.map(n => Math.round(n)).join(', ')}]`
+        ).join('\n');
       }
-      const blocksStr = Object.entries(blockCounts).map(([t, c]) => `${t}: ${c}`).join(', ') || 'none';
 
-      const treePositions = blockArr
-        .filter(b => b.type === 'wood' || b.type === 'leaves')
-        .slice(0, 10)
-        .map(b => `[${b.pos.join(',')}]`);
+      if (target === 'tree' || target === 'trees') {
+        const woodBlocks = blocks.filter(b => b.type === 'wood');
+        if (woodBlocks.length === 0) return 'No trees found nearby. Try exploring further.';
+        const treeRoots: number[][] = [];
+        for (const b of woodBlocks) {
+          if (!treeRoots.find(p => Math.abs(p[0] - b.pos[0]) <= 1 && Math.abs(p[2] - b.pos[2]) <= 1)) {
+            treeRoots.push(b.pos);
+          }
+        }
+        return `Found ${treeRoots.length} tree(s):\n` + treeRoots.slice(0, 10).map(p =>
+          `- Tree at [${p.join(', ')}]`
+        ).join('\n');
+      }
 
-      const entityArr = (entities as { id: string; type: string; pos: number[] }[]) || [];
-      const entitiesStr = entityArr.length > 0
-        ? entityArr.slice(0, 10).map(e => `${e.type}(${e.id}) at [${e.pos.map(n => Math.round(n)).join(',')}]`).join('; ')
-        : 'none nearby';
+      if (target === 'food') {
+        const inv = worldState.inventory || {};
+        const foods = ['cooked_meat', 'bread', 'raw_meat', 'wheat'].filter(f => (inv[f] || 0) > 0);
+        if (foods.length === 0) return 'No food in inventory. Hunt animals or harvest crops to get food.';
+        return 'Food in inventory: ' + foods.map(f => `${f}: ${inv[f]}`).join(', ');
+      }
 
-      const inv = (inventory as unknown as Record<string, number>) || {};
-      const inventoryStr = Object.entries(inv).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(', ') || 'empty';
-
-      const positionStr = position ? JSON.stringify(position) : 'unknown';
-
-      return `Position: ${positionStr}. Nearby blocks: ${blocksStr}. Trees at: ${treePositions.join(', ') || 'none visible'}. Entities: ${entitiesStr}. Inventory: ${inventoryStr}.`;
+      const matching = blocks.filter(b => b.type === target);
+      if (matching.length === 0) return `No ${target} found nearby.`;
+      return `Found ${matching.length} ${target} block(s):\n` + matching.slice(0, 8).map(b =>
+        `- [${b.pos.join(', ')}]`
+      ).join('\n');
     },
   }),
   new DynamicTool({
