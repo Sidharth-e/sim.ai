@@ -2,6 +2,10 @@
 
 Autonomous AI agent living in a 3D voxel world. The agent survives, builds, learns, and evolves through persistent memory — all decisions made by AI, no human input required.
 
+![SIM.AI Screenshot](public/screenshot-1.png)
+![SIM.AI Screenshot](public/screenshot-2.png)
+![SIM.AI Screenshot](public/screenshot-3.png)
+
 ## What It Does
 
 A simulated AI character dropped into a procedurally generated voxel world. Every few seconds it observes, thinks, and acts — gathering resources, building structures, hunting, crafting, and adapting strategies based on past experiences saved as markdown files.
@@ -70,6 +74,7 @@ memories/
 ## How Memory Works
 
 Each tick:
+
 1. Agent receives its last 5 experiences + full knowledge base in the prompt
 2. Agent thinks, decides actions, optionally calls `save_learning` for important insights
 3. Experience (thought + actions + state) auto-saved as `.md` file
