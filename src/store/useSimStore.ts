@@ -22,7 +22,7 @@ interface SimState {
 
 export const useSimStore = create<SimState>((set) => ({
   stats: { hunger: 90, energy: 100, happiness: 100 },
-  position: [0, 2.5, 0],
+  position: [0, 6, 0],
   isThinking: false,
   lastThought: '',
   inventory: { wood: 0, raw_meat: 0, cooked_meat: 0 },
