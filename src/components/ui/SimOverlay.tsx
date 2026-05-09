@@ -1,38 +1,108 @@
 'use client';
 import { useSimStore } from '@/store/useSimStore';
+import { Heart, Zap, Smile } from 'lucide-react';
+
+const ITEM_CONFIG: Record<string, { bg: string; label: string }> = {
+  wood: { bg: '#6b4226', label: 'Wood' },
+  raw_meat: { bg: '#991b1b', label: 'Raw' },
+  cooked_meat: { bg: '#c2410c', label: 'Cooked' },
+};
+
+function StatBar({
+  value,
+  color,
+  icon,
+}: {
+  value: number;
+  color: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-4 h-4 shrink-0">{icon}</span>
+      <div className="flex-1 h-2.5 bg-black/50 rounded-sm overflow-hidden border border-white/10">
+        <div
+          className="h-full transition-all duration-700 ease-out"
+          style={{ width: `${value}%`, backgroundColor: color }}
+        />
+      </div>
+      <span className="text-[11px] w-7 text-right font-mono text-gray-300">
+        {value}
+      </span>
+    </div>
+  );
+}
 
 export default function SimOverlay() {
-  const { stats, isThinking, lastThought } = useSimStore();
+  const { stats, isThinking, lastThought, inventory } = useSimStore();
 
   return (
-    <div className="absolute top-4 right-4 bg-white/90 p-4 rounded shadow-xl w-80 text-black z-50 pointer-events-auto border border-gray-200">
-      <h2 className="font-bold border-b mb-2 flex justify-between items-center">
-        <span>Sim Status</span>
-        {isThinking && <span className="text-xs animate-pulse text-blue-600">Thinking...</span>}
-      </h2>
-      <div className="space-y-1">
-        <div className="flex justify-between">
-          <span>Hunger:</span>
-          <span className={stats.hunger < 30 ? 'text-red-600 font-bold' : ''}>{stats.hunger}%</span>
+    <>
+      {/* Status panel */}
+      <div className="absolute top-4 right-4 bg-gray-950/80 backdrop-blur-sm p-3.5 rounded-lg w-64 text-white z-50 pointer-events-auto border border-white/10 shadow-2xl">
+        <div className="flex justify-between items-center mb-2.5">
+          <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
+            Status
+          </span>
+          {isThinking && (
+            <span className="text-[11px] animate-pulse text-cyan-400 font-mono flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full" />
+              Thinking
+            </span>
+          )}
         </div>
-        <div className="flex justify-between">
-          <span>Energy:</span>
-          <span>{stats.energy}%</span>
+
+        <div className="space-y-1.5">
+          <StatBar
+            value={stats.hunger}
+            color="#ef4444"
+            icon={<Heart className="w-4 h-4 text-red-400" />}
+          />
+          <StatBar
+            value={stats.energy}
+            color="#eab308"
+            icon={<Zap className="w-4 h-4 text-yellow-400" />}
+          />
+          <StatBar
+            value={stats.happiness}
+            color="#22c55e"
+            icon={<Smile className="w-4 h-4 text-green-400" />}
+          />
         </div>
-        
+
         {lastThought && (
-          <div className="mt-4 p-2 bg-gray-100 rounded text-xs">
-            <div className="font-semibold mb-1 text-gray-500 uppercase tracking-wider text-[10px]">Current Thought:</div>
-            <div className="whitespace-pre-wrap leading-relaxed">{lastThought}</div>
+          <div className="mt-2.5 p-2 bg-black/40 rounded text-[11px] border border-white/5 leading-relaxed text-gray-300">
+            {lastThought}
           </div>
         )}
 
         {!isThinking && !lastThought && (
-          <div className="mt-2 italic text-sm text-gray-400 text-center py-2">
+          <div className="mt-2 text-[11px] text-gray-600 text-center italic">
             Idle
           </div>
         )}
       </div>
-    </div>
+
+      {/* Inventory hotbar */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1 z-50 pointer-events-auto">
+        {Object.entries(inventory).map(([item, count]) => {
+          const cfg = ITEM_CONFIG[item] || { bg: '#555', label: item };
+          return (
+            <div
+              key={item}
+              className="w-14 h-14 bg-gray-950/80 border border-white/10 rounded-md flex flex-col items-center justify-center gap-0.5 backdrop-blur-sm"
+            >
+              <div
+                className="w-6 h-6 rounded-sm"
+                style={{ backgroundColor: cfg.bg }}
+              />
+              <span className="text-[9px] text-gray-400 font-mono leading-none">
+                {cfg.label} {count}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
