@@ -33,4 +33,22 @@ describe('ModelFactory', () => {
     const model = ModelFactory.createModel('anthropic');
     expect(model.lc_namespace).toContain('anthropic');
   });
+
+  it('should return an Ollama model for ollama_cloud with configuration', () => {
+    process.env.OLLAMA_BASE_URL = 'https://custom-ollama.cloud';
+    process.env.OLLAMA_API_KEY = 'test-cloud-key';
+    process.env.OLLAMA_MODEL = 'deepseek-r1:latest';
+
+    const model = ModelFactory.createModel('ollama_cloud');
+    expect(model._modelType()).toBe('base_chat_model');
+    expect((model as unknown as { baseUrl: string }).baseUrl).toBe('https://custom-ollama.cloud');
+    expect((model as unknown as { model: string }).model).toBe('deepseek-r1:latest');
+  });
+
+  it('should return an Ollama model with authorization header when OLLAMA_API_KEY is provided', () => {
+    process.env.OLLAMA_API_KEY = 'test-ollama-key';
+
+    const model = ModelFactory.createModel('ollama');
+    expect(model._modelType()).toBe('base_chat_model');
+  });
 });

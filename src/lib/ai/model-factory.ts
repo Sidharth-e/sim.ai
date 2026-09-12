@@ -33,10 +33,19 @@ export class ModelFactory {
           apiKey: process.env.GOOGLE_API_KEY,
         });
       case "ollama":
+      case "ollama_cloud": {
+        const apiKey = process.env.OLLAMA_API_KEY;
+        const headers: Record<string, string> = {};
+        if (apiKey) {
+          headers["Authorization"] = `Bearer ${apiKey}`;
+        }
+
         return new ChatOllama({
           baseUrl: process.env.OLLAMA_BASE_URL || "http://localhost:11434",
           model: process.env.OLLAMA_MODEL || "qwen2.5-coder:14b",
+          ...(Object.keys(headers).length > 0 ? { headers } : {}),
         });
+      }
       default:
         throw new Error(`Unsupported provider: ${selectedProvider}`);
     }
