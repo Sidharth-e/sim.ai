@@ -16,6 +16,17 @@ const BLOCK_COLORS: Record<string, string> = {
   wood: '#6b4226',
   leaves: '#2d8c1e',
   snow: '#f0f0ff',
+  glass: '#a5f3fc',
+  wood_plank: '#b45309',
+  brick: '#b91c1c',
+  cobblestone: '#4b5563',
+  iron: '#e2e8f0',
+  gold: '#facc15',
+  campfire: '#ea580c',
+  torch: '#f59e0b',
+  chest: '#92400e',
+  water: '#38bdf8',
+  farmland: '#5c3a21',
 };
 
 function BlockInstances({
@@ -82,8 +93,10 @@ function Terrain() {
         <BlockInstances
           key={`${type}-${positions.length}`}
           positions={positions}
-          color={BLOCK_COLORS[type] || '#888'}
-          roughness={type === 'leaves' ? 0.95 : 0.85}
+          color={BLOCK_COLORS[type] || '#888888'}
+          roughness={type === 'leaves' ? 0.95 : type === 'glass' ? 0.1 : 0.85}
+          transparent={type === 'glass' || type === 'water'}
+          opacity={type === 'glass' ? 0.5 : type === 'water' ? 0.7 : 1}
         />
       ))}
     </>
@@ -105,7 +118,6 @@ function SimCharacter() {
   const smoothPos = useRef(new THREE.Vector3(...position));
   const prevSmoothPos = useRef(new THREE.Vector3(...position));
   const movePhase = useRef(0);
-  const velocity = useRef(0);
   const facingAngle = useRef(0);
 
   useFrame((_, delta) => {
@@ -185,14 +197,9 @@ function SimCharacter() {
 
   return (
     <group ref={groupRef}>
-      {/* Beacon pillar */}
-      <mesh position={[0, 6, 0]}>
-        <boxGeometry args={[0.15, 8, 0.15]} />
-        <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={0.4} transparent opacity={0.6} />
-      </mesh>
-      <mesh position={[0, 10.5, 0]}>
-        <boxGeometry args={[0.8, 0.8, 0.8]} />
-        <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={0.6} />
+      <mesh position={[0, 3.2, 0]} rotation={[0.785, 0.785, 0]}>
+        <boxGeometry args={[0.3, 0.3, 0.3]} />
+        <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={0.6} />
       </mesh>
 
       <group ref={bodyRef} position={[0, 1.125, 0]} scale={1.4}>
@@ -437,15 +444,74 @@ function lerpColor(a: string, b: string, t: number): string {
   return `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0')}`;
 }
 
+interface MapControlsHandle {
+  target: THREE.Vector3;
+  update: () => void;
+  addEventListener: (type: string, listener: () => void) => void;
+  removeEventListener: (type: string, listener: () => void) => void;
+}
+
+function CameraFollower({
+  controlsRef,
+}: {
+  controlsRef: React.RefObject<MapControlsHandle | null>;
+}) {
+  const position = useSimStore((state) => state.position);
+  const focusCameraSignal = useSimStore((state) => state.focusCameraSignal);
+  const prevSignal = useRef(focusCameraSignal);
+  const isInteracting = useRef(false);
+
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+    const onStart = () => {
+      isInteracting.current = true;
+    };
+    const onEnd = () => {
+      isInteracting.current = false;
+    };
+    controls.addEventListener('start', onStart);
+    controls.addEventListener('end', onEnd);
+    return () => {
+      controls.removeEventListener('start', onStart);
+      controls.removeEventListener('end', onEnd);
+    };
+  }, [controlsRef]);
+
+  useFrame(({ camera }) => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+
+    if (focusCameraSignal !== prevSignal.current) {
+      prevSignal.current = focusCameraSignal;
+      controls.target.set(position[0], position[1] + 1, position[2]);
+      camera.position.set(position[0] + 25, position[1] + 20, position[2] + 25);
+      controls.update();
+      return;
+    }
+
+    if (!isInteracting.current) {
+      controls.target.lerp(
+        new THREE.Vector3(position[0], position[1] + 1, position[2]),
+        0.03
+      );
+      controls.update();
+    }
+  });
+
+  return null;
+}
+
 export default function VoxelWorld() {
   const entities = useWorldStore((state) => state.entities);
   const sunPos = useSunPosition();
   const lighting = useLightingParams();
+  const controlsRef = useRef<MapControlsHandle | null>(null);
 
   return (
     <Canvas
       shadows
-      camera={{ position: [80, 60, 80], fov: 55 }}
+      camera={{ position: [35, 25, 35], fov: 50, near: 0.5, far: 500 }}
       gl={{ antialias: true }}
     >
       <Sky
@@ -456,7 +522,7 @@ export default function VoxelWorld() {
         mieDirectionalG={0.8}
       />
 
-      <fog attach="fog" args={[lighting.fogColor, 200, 500]} />
+      <fog attach="fog" args={[lighting.fogColor, 120, 300]} />
 
       <ambientLight intensity={lighting.ambient} />
       <directionalLight
@@ -474,16 +540,19 @@ export default function VoxelWorld() {
       <hemisphereLight args={[lighting.hemiSky, lighting.hemiGround, 0.25]} />
 
       <MapControls
-        maxPolarAngle={Math.PI / 2.1}
-        minDistance={5}
-        maxDistance={500}
+        ref={controlsRef}
+        maxPolarAngle={Math.PI / 2.6}
+        minPolarAngle={Math.PI / 8}
+        minDistance={12}
+        maxDistance={120}
         enableDamping
         dampingFactor={0.08}
         rotateSpeed={0.5}
-        zoomSpeed={1.5}
-        panSpeed={1.2}
-        target={[0, 3, 0]}
+        zoomSpeed={0.8}
+        panSpeed={1.0}
+        target={[0, 4, 0]}
       />
+      <CameraFollower controlsRef={controlsRef} />
 
       <Terrain />
       <WaterSurface />

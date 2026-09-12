@@ -1,25 +1,40 @@
 'use client';
+
 import { useEffect, useRef } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { useSimStore } from '@/store/useSimStore';
 import { useWorldStore } from '@/store/useWorldStore';
 import { useTimeStore } from '@/store/useTimeStore';
 import { BLUEPRINTS, CRAFTABLE_ITEMS, GATHERABLE_RESOURCES } from '@/lib/ai/blueprints';
+import { postAgentTick } from '@/lib/api';
+import { findVoxelPath } from '@/lib/world/pathfinding';
+import { validateBlockPlacement } from '@/lib/world/validation';
 
 function parseNumbers(args: string): number[] {
-  return args.replace(/[\[\]'"]/g, '').split(',').map(s => Number(s.trim()));
+  return args.replace(/[\[\]'"]/g, '').split(',').map((s) => Number(s.trim()));
 }
 
 function hasResources(inventory: Record<string, number>, cost: Record<string, number>): boolean {
   return Object.entries(cost).every(([item, amount]) => (inventory[item] || 0) >= amount);
 }
 
-const TRAVEL_SPEED = 5;
-const ENERGY_PER_BLOCK = 2;
+const TRAVEL_SPEED = 2;
+const ENERGY_PER_BLOCK = 1;
 const HUNGER_PER_BLOCK = 1;
 
 export default function SimLoop() {
   const tickRef = useRef(0);
   const outcomesRef = useRef<string[]>([]);
+  const pathQueueRef = useRef<[number, number, number][]>([]);
+
+  const tickMutation = useMutation({
+    mutationFn: postAgentTick,
+  });
+
+  const mutationRef = useRef(tickMutation);
+  useEffect(() => {
+    mutationRef.current = tickMutation;
+  });
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -27,12 +42,37 @@ export default function SimLoop() {
 
       const sim = useSimStore.getState();
       const world = useWorldStore.getState();
-      const { updateStats, setThinking, setLastThought, setPosition, setTravelTarget, addToInventory, removeFromInventory } = sim;
+      const {
+        updateStats,
+        setThinking,
+        setLastThought,
+        setPosition,
+        setTravelTarget,
+        addToInventory,
+        removeFromInventory,
+      } = sim;
       const { addBlock, removeBlock, addEntity, removeEntity } = world;
       const { stats, isThinking, travelTarget } = sim;
 
       const newHunger = Math.max(0, stats.hunger - 1);
-      updateStats({ hunger: newHunger });
+      const newEnergy = Math.max(0, stats.energy - 0.5);
+      const newHappiness = Math.max(0, stats.happiness - (newHunger < 30 ? 2 : 0.5));
+      updateStats({ hunger: newHunger, energy: Math.round(newEnergy), happiness: Math.round(newHappiness) });
+
+      if (pathQueueRef.current.length > 0) {
+        const nextWaypoint = pathQueueRef.current.shift()!;
+        setPosition(nextWaypoint);
+        updateStats({
+          energy: Math.max(0, stats.energy - ENERGY_PER_BLOCK),
+          hunger: Math.max(0, newHunger - HUNGER_PER_BLOCK),
+        });
+
+        if (pathQueueRef.current.length === 0) {
+          setTravelTarget(null);
+          outcomesRef.current.push(`- travel: arrived at destination [${nextWaypoint.join(', ')}] via A* pathfinding`);
+        }
+        return;
+      }
 
       if (travelTarget) {
         const [cx, cy, cz] = sim.position;
@@ -50,7 +90,7 @@ export default function SimLoop() {
             energy: Math.max(0, stats.energy - travelCost * ENERGY_PER_BLOCK),
             hunger: Math.max(0, newHunger - travelCost * HUNGER_PER_BLOCK),
           });
-          outcomesRef.current.push(`- travel: arrived at [${tx}, ${ty}, ${tz}] (cost: ${travelCost * ENERGY_PER_BLOCK} energy, ${travelCost * HUNGER_PER_BLOCK} hunger)`);
+          outcomesRef.current.push(`- travel: arrived at [${tx}, ${ty}, ${tz}]`);
         } else {
           const ratio = TRAVEL_SPEED / dist;
           const nx = cx + dx * ratio;
@@ -62,7 +102,7 @@ export default function SimLoop() {
             hunger: Math.max(0, newHunger - TRAVEL_SPEED * HUNGER_PER_BLOCK),
           });
           const remaining = Math.round(dist - TRAVEL_SPEED);
-          outcomesRef.current.push(`- travel: walking toward [${tx}, ${ty}, ${tz}], ~${remaining} blocks left (cost: ${TRAVEL_SPEED * ENERGY_PER_BLOCK} energy, ${TRAVEL_SPEED * HUNGER_PER_BLOCK} hunger)`);
+          outcomesRef.current.push(`- travel: walking toward [${tx}, ${ty}, ${tz}], ~${remaining} blocks left`);
         }
         return;
       }
@@ -75,19 +115,17 @@ export default function SimLoop() {
           pos: [
             simPos[0] + (Math.random() - 0.5) * 10,
             1,
-            simPos[2] + (Math.random() - 0.5) * 10
+            simPos[2] + (Math.random() - 0.5) * 10,
           ],
-          health: 100
+          health: 100,
         });
       }
 
-      if (newHunger < 95 && !isThinking) {
+      if (newHunger < 95 && !isThinking && !mutationRef.current.isPending) {
         setThinking(true);
         tickRef.current += 1;
         const currentTick = tickRef.current;
-        const prevOutcomes = outcomesRef.current.length > 0
-          ? outcomesRef.current.join('\n')
-          : undefined;
+        const prevOutcomes = outcomesRef.current.length > 0 ? outcomesRef.current.join('\n') : undefined;
         outcomesRef.current = [];
 
         try {
@@ -99,14 +137,14 @@ export default function SimLoop() {
           const allBlocks = freshWorld.blocks;
           const allEntities = freshWorld.entities;
 
-          const nearbyBlocks = allBlocks.filter(b =>
-            Math.abs(b.pos[0] - px) <= VIEW_RADIUS &&
-            Math.abs(b.pos[1] - py) <= VIEW_RADIUS &&
-            Math.abs(b.pos[2] - pz) <= VIEW_RADIUS
+          const nearbyBlocks = allBlocks.filter(
+            (b) =>
+              Math.abs(b.pos[0] - px) <= VIEW_RADIUS &&
+              Math.abs(b.pos[1] - py) <= VIEW_RADIUS &&
+              Math.abs(b.pos[2] - pz) <= VIEW_RADIUS
           );
-          const nearbyEntities = allEntities.filter(e =>
-            Math.abs(e.pos[0] - px) <= VIEW_RADIUS &&
-            Math.abs(e.pos[2] - pz) <= VIEW_RADIUS
+          const nearbyEntities = allEntities.filter(
+            (e) => Math.abs(e.pos[0] - px) <= VIEW_RADIUS && Math.abs(e.pos[2] - pz) <= VIEW_RADIUS
           );
 
           const tickWorldState = {
@@ -114,20 +152,16 @@ export default function SimLoop() {
             entities: nearbyEntities,
             inventory: sim.inventory,
             position: sim.position,
-            stats: { ...sim.stats, hunger: newHunger }
+            stats: { ...sim.stats, hunger: newHunger },
           };
 
-          const res = await fetch('/api/agent/tick', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: `Tick ${currentTick}. A new moment. Observe, decide, act.`,
-              worldState: tickWorldState,
-              tickNumber: currentTick,
-              previousOutcomes: prevOutcomes,
-            })
+          const data = await mutationRef.current.mutateAsync({
+            prompt: `Tick ${currentTick}. A new moment. Observe, decide, act.`,
+            worldState: tickWorldState,
+            tickNumber: currentTick,
+            previousOutcomes: prevOutcomes,
           });
-          const data = await res.json();
+
           if (data.success) {
             setLastThought(data.thought || '');
 
@@ -142,11 +176,11 @@ export default function SimLoop() {
                   const cur = useSimStore.getState().stats.hunger;
                   if ((inv.cooked_meat || 0) >= 1) {
                     removeFromInventory('cooked_meat', 1);
-                    updateStats({ hunger: Math.min(100, cur + 30) });
+                    updateStats({ hunger: Math.min(100, cur + 30), happiness: Math.min(100, sim.stats.happiness + 10) });
                     outcomesRef.current.push('- eat: consumed cooked_meat, hunger +30');
                   } else if ((inv.bread || 0) >= 1) {
                     removeFromInventory('bread', 1);
-                    updateStats({ hunger: Math.min(100, cur + 20) });
+                    updateStats({ hunger: Math.min(100, cur + 20), happiness: Math.min(100, sim.stats.happiness + 5) });
                     outcomesRef.current.push('- eat: consumed bread, hunger +20');
                   } else if ((inv.raw_meat || 0) >= 1) {
                     removeFromInventory('raw_meat', 1);
@@ -160,21 +194,23 @@ export default function SimLoop() {
 
                 case 'move_to': {
                   const parts = parseNumbers(args);
-                  if (parts.length >= 3 && parts.every(n => !isNaN(n))) {
+                  if (parts.length >= 3 && parts.every((n) => !isNaN(n))) {
                     const [mx, my, mz] = parts;
-                    const [cx, cy, cz] = useSimStore.getState().position;
-                    const dist = Math.sqrt((mx-cx)**2 + (my-cy)**2 + (mz-cz)**2);
-                    if (dist <= TRAVEL_SPEED) {
-                      setPosition([mx, my, mz]);
-                      const cost = Math.ceil(dist);
-                      updateStats({
-                        energy: Math.max(0, useSimStore.getState().stats.energy - cost * ENERGY_PER_BLOCK),
-                        hunger: Math.max(0, useSimStore.getState().stats.hunger - cost * HUNGER_PER_BLOCK),
-                      });
-                      outcomesRef.current.push(`- move_to: walked to [${mx}, ${my}, ${mz}] (${cost} blocks)`);
-                    } else {
+                    const solidSet = new Set(
+                      useWorldStore
+                        .getState()
+                        .blocks.map((b) => `${Math.round(b.pos[0])},${Math.round(b.pos[1])},${Math.round(b.pos[2])}`)
+                    );
+                    const waypoints = findVoxelPath(sim.position, [mx, my, mz], solidSet);
+                    if (waypoints.length > 1) {
+                      waypoints.shift();
+                      pathQueueRef.current = waypoints;
                       setTravelTarget([mx, my, mz]);
-                      outcomesRef.current.push(`- move_to: started walking to [${mx}, ${my}, ${mz}] (~${Math.round(dist)} blocks away)`);
+                      outcomesRef.current.push(`- move_to: path generated with ${waypoints.length} steps toward [${mx}, ${my}, ${mz}]`);
+                    } else if (waypoints.length === 1) {
+                      setPosition(waypoints[0]);
+                      setTravelTarget(null);
+                      outcomesRef.current.push(`- move_to: stepped directly to [${mx}, ${my}, ${mz}]`);
                     }
                   }
                   break;
@@ -182,18 +218,30 @@ export default function SimLoop() {
 
                 case 'place_block': {
                   const rawParts = args.replace(/[\[\]]/g, '').split(',');
-                  const x = Number(rawParts[0]), y = Number(rawParts[1]), z = Number(rawParts[2]);
+                  const x = Number(rawParts[0]);
+                  const y = Number(rawParts[1]);
+                  const z = Number(rawParts[2]);
                   const type = rawParts[3]?.trim().replace(/['"]/g, '') || 'wood';
                   if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                    addBlock([x, y, z], type);
-                    outcomesRef.current.push(`- place_block: placed ${type} at [${x},${y},${z}]`);
+                    const validation = validateBlockPlacement(
+                      [x, y, z],
+                      type,
+                      useSimStore.getState().position,
+                      useWorldStore.getState().blocks as { pos: [number, number, number] }[]
+                    );
+                    if (validation.valid) {
+                      addBlock([x, y, z], type);
+                      outcomesRef.current.push(`- place_block: placed ${type} at [${x},${y},${z}]`);
+                    } else {
+                      outcomesRef.current.push(`- place_block: FAILED — ${validation.reason}`);
+                    }
                   }
                   break;
                 }
 
                 case 'remove_block': {
                   const parts = parseNumbers(args);
-                  if (parts.length >= 3 && parts.every(n => !isNaN(n))) {
+                  if (parts.length >= 3 && parts.every((n) => !isNaN(n))) {
                     removeBlock([parts[0], parts[1], parts[2]]);
                     outcomesRef.current.push(`- remove_block: removed at [${parts[0]},${parts[1]},${parts[2]}]`);
                   }
@@ -202,8 +250,10 @@ export default function SimLoop() {
 
                 case 'cut_tree': {
                   const parts = parseNumbers(args);
-                  if (parts.length >= 3 && parts.every(n => !isNaN(n))) {
-                    const tx = parts[0], ty = parts[1], tz = parts[2];
+                  if (parts.length >= 3 && parts.every((n) => !isNaN(n))) {
+                    const tx = parts[0],
+                      ty = parts[1],
+                      tz = parts[2];
                     const ws = useWorldStore.getState();
                     const treePositions = new Set<string>();
                     let woodCount = 0;
@@ -219,7 +269,7 @@ export default function SimLoop() {
                       }
                     }
                     useWorldStore.setState((state) => ({
-                      blocks: state.blocks.filter(b => {
+                      blocks: state.blocks.filter((b) => {
                         if (b.type !== 'wood' && b.type !== 'leaves') return true;
                         return !treePositions.has(`${b.pos[0]},${b.pos[1]},${b.pos[2]}`);
                       }),
@@ -249,7 +299,9 @@ export default function SimLoop() {
 
                   const inv = useSimStore.getState().inventory;
                   if (!hasResources(inv, blueprint.cost)) {
-                    const needed = Object.entries(blueprint.cost).map(([k, v]) => `${v} ${k}`).join(', ');
+                    const needed = Object.entries(blueprint.cost)
+                      .map(([k, v]) => `${v} ${k}`)
+                      .join(', ');
                     outcomesRef.current.push(`- build(${type}): FAILED — need ${needed}`);
                     break;
                   }
@@ -264,18 +316,21 @@ export default function SimLoop() {
                   const baseZ = Math.round(pos[2]);
 
                   for (const block of blueprint.blocks) {
-                    addBlock([
-                      baseX + block.offset[0],
-                      baseY + block.offset[1],
-                      baseZ + block.offset[2],
-                    ], block.type);
+                    addBlock(
+                      [
+                        baseX + block.offset[0],
+                        baseY + block.offset[1],
+                        baseZ + block.offset[2],
+                      ],
+                      block.type
+                    );
                   }
                   outcomesRef.current.push(`- build(${type}): SUCCESS — placed ${blueprint.blocks.length} blocks`);
                   break;
                 }
 
                 case 'craft': {
-                  const rawParts = args.split(',').map(s => s.trim().replace(/['"]/g, ''));
+                  const rawParts = args.split(',').map((s) => s.trim().replace(/['"]/g, ''));
                   const itemName = rawParts[0];
                   const qty = rawParts[1] ? parseInt(rawParts[1]) : 1;
                   const recipe = CRAFTABLE_ITEMS[itemName];
@@ -290,7 +345,9 @@ export default function SimLoop() {
                     scaledCost[k] = v * qty;
                   }
                   if (!hasResources(inv, scaledCost)) {
-                    const needed = Object.entries(scaledCost).map(([k, v]) => `${v} ${k}`).join(', ');
+                    const needed = Object.entries(scaledCost)
+                      .map(([k, v]) => `${v} ${k}`)
+                      .join(', ');
                     outcomesRef.current.push(`- craft(${itemName}): FAILED — need ${needed}`);
                     break;
                   }
@@ -301,15 +358,22 @@ export default function SimLoop() {
                   for (const [item, amount] of Object.entries(recipe.yields)) {
                     addToInventory(item, amount * qty);
                   }
-                  const yieldsStr = Object.entries(recipe.yields).map(([k, v]) => `${v * qty} ${k}`).join(', ');
+                  const yieldsStr = Object.entries(recipe.yields)
+                    .map(([k, v]) => `${v * qty} ${k}`)
+                    .join(', ');
                   outcomesRef.current.push(`- craft(${itemName} x${qty}): SUCCESS — got ${yieldsStr}`);
                   break;
                 }
 
                 case 'gather': {
-                  const rawParts = args.replace(/[\[\]'"]/g, '').split(',').map(s => s.trim());
+                  const rawParts = args
+                    .replace(/[\[\]'"]/g, '')
+                    .split(',')
+                    .map((s) => s.trim());
                   const gatherType = rawParts[0];
-                  const gx = Number(rawParts[1]), gy = Number(rawParts[2]), gz = Number(rawParts[3]);
+                  const gx = Number(rawParts[1]),
+                    gy = Number(rawParts[2]),
+                    gz = Number(rawParts[3]);
                   const resource = GATHERABLE_RESOURCES[gatherType];
                   if (!resource || isNaN(gx) || isNaN(gy) || isNaN(gz)) {
                     outcomesRef.current.push(`- gather(${rawParts[0]}): FAILED — invalid args`);
@@ -317,12 +381,17 @@ export default function SimLoop() {
                   }
 
                   const ws = useWorldStore.getState();
-                  const targetBlock = ws.blocks.find(b =>
-                    b.pos[0] === gx && b.pos[1] === gy && b.pos[2] === gz &&
-                    b.type === resource.blockType
+                  const targetBlock = ws.blocks.find(
+                    (b) =>
+                      b.pos[0] === gx &&
+                      b.pos[1] === gy &&
+                      b.pos[2] === gz &&
+                      b.type === resource.blockType
                   );
                   if (!targetBlock) {
-                    outcomesRef.current.push(`- gather(${gatherType}): FAILED — no ${resource.blockType} at [${gx},${gy},${gz}]`);
+                    outcomesRef.current.push(
+                      `- gather(${gatherType}): FAILED — no ${resource.blockType} at [${gx},${gy},${gz}]`
+                    );
                     break;
                   }
 
@@ -330,24 +399,33 @@ export default function SimLoop() {
                   for (const [item, amount] of Object.entries(resource.yields)) {
                     addToInventory(item, amount);
                   }
-                  const yieldsStr = Object.entries(resource.yields).map(([k, v]) => `${v} ${k}`).join(', ');
+                  const yieldsStr = Object.entries(resource.yields)
+                    .map(([k, v]) => `${v} ${k}`)
+                    .join(', ');
                   outcomesRef.current.push(`- gather(${gatherType}): SUCCESS — got ${yieldsStr}`);
                   break;
                 }
 
                 case 'demolish': {
                   const parts = parseNumbers(args);
-                  if (parts.length < 6 || parts.some(n => isNaN(n))) break;
+                  if (parts.length < 6 || parts.some((n) => isNaN(n))) break;
                   const [x1, y1, z1, x2, y2, z2] = parts;
-                  const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
-                  const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
-                  const minZ = Math.min(z1, z2), maxZ = Math.max(z1, z2);
+                  const minX = Math.min(x1, x2),
+                    maxX = Math.max(x1, x2);
+                  const minY = Math.min(y1, y2),
+                    maxY = Math.max(y1, y2);
+                  const minZ = Math.min(z1, z2),
+                    maxZ = Math.max(z1, z2);
 
                   const ws = useWorldStore.getState();
-                  const toRemove = ws.blocks.filter(b =>
-                    b.pos[0] >= minX && b.pos[0] <= maxX &&
-                    b.pos[1] >= minY && b.pos[1] <= maxY &&
-                    b.pos[2] >= minZ && b.pos[2] <= maxZ
+                  const toRemove = ws.blocks.filter(
+                    (b) =>
+                      b.pos[0] >= minX &&
+                      b.pos[0] <= maxX &&
+                      b.pos[1] >= minY &&
+                      b.pos[1] <= maxY &&
+                      b.pos[2] >= minZ &&
+                      b.pos[2] <= maxZ
                   );
                   for (const b of toRemove) {
                     removeBlock(b.pos);
@@ -360,32 +438,45 @@ export default function SimLoop() {
                 }
 
                 case 'terraform': {
-                  const rawParts = args.replace(/[\[\]'"]/g, '').split(',').map(s => s.trim());
+                  const rawParts = args
+                    .replace(/[\[\]'"]/g, '')
+                    .split(',')
+                    .map((s) => s.trim());
                   const op = rawParts[0];
-                  const tx1 = Number(rawParts[1]), tz1 = Number(rawParts[2]);
-                  const tx2 = Number(rawParts[3]), tz2 = Number(rawParts[4]);
+                  const tx1 = Number(rawParts[1]),
+                    tz1 = Number(rawParts[2]);
+                  const tx2 = Number(rawParts[3]),
+                    tz2 = Number(rawParts[4]);
                   const param = rawParts[5];
                   if (isNaN(tx1) || isNaN(tz1) || isNaN(tx2) || isNaN(tz2)) break;
 
-                  const mnX = Math.min(tx1, tx2), mxX = Math.max(tx1, tx2);
-                  const mnZ = Math.min(tz1, tz2), mxZ = Math.max(tz1, tz2);
+                  const mnX = Math.min(tx1, tx2),
+                    mxX = Math.max(tx1, tx2);
+                  const mnZ = Math.min(tz1, tz2),
+                    mxZ = Math.max(tz1, tz2);
 
                   switch (op) {
                     case 'flatten': {
                       const targetY = Number(param);
                       if (isNaN(targetY)) break;
                       const ws = useWorldStore.getState();
-                      const inRange = ws.blocks.filter(b =>
-                        b.pos[0] >= mnX && b.pos[0] <= mxX &&
-                        b.pos[2] >= mnZ && b.pos[2] <= mxZ
+                      const inRange = ws.blocks.filter(
+                        (b) =>
+                          b.pos[0] >= mnX &&
+                          b.pos[0] <= mxX &&
+                          b.pos[2] >= mnZ &&
+                          b.pos[2] <= mxZ
                       );
                       for (const b of inRange) {
                         if (b.pos[1] > targetY) removeBlock(b.pos);
                       }
                       for (let x = mnX; x <= mxX; x++) {
                         for (let z = mnZ; z <= mxZ; z++) {
-                          const hasBlock = ws.blocks.some(b =>
-                            b.pos[0] === x && b.pos[1] === targetY && b.pos[2] === z
+                          const hasBlock = ws.blocks.some(
+                            (b) =>
+                              b.pos[0] === x &&
+                              b.pos[1] === targetY &&
+                              b.pos[2] === z
                           );
                           if (!hasBlock) addBlock([x, targetY, z], 'dirt');
                         }
@@ -397,7 +488,7 @@ export default function SimLoop() {
                       for (let x = mnX; x <= mxX; x++) {
                         for (let z = mnZ; z <= mxZ; z++) {
                           const col = ws.blocks
-                            .filter(b => b.pos[0] === x && b.pos[2] === z)
+                            .filter((b) => b.pos[0] === x && b.pos[2] === z)
                             .sort((a, b) => b.pos[1] - a.pos[1]);
                           const topY = col.length > 0 ? col[0].pos[1] + 1 : 0;
                           addBlock([x, topY, z], 'dirt');
@@ -410,7 +501,7 @@ export default function SimLoop() {
                       for (let x = mnX; x <= mxX; x++) {
                         for (let z = mnZ; z <= mxZ; z++) {
                           const col = ws.blocks
-                            .filter(b => b.pos[0] === x && b.pos[2] === z)
+                            .filter((b) => b.pos[0] === x && b.pos[2] === z)
                             .sort((a, b) => b.pos[1] - a.pos[1]);
                           if (col.length > 0) {
                             removeBlock(col[0].pos);
@@ -435,7 +526,9 @@ export default function SimLoop() {
 
                 case 'cook': {
                   const inv = useSimStore.getState().inventory;
-                  const hasCampfire = useWorldStore.getState().blocks.some(b => b.type === 'campfire');
+                  const hasCampfire = useWorldStore
+                    .getState()
+                    .blocks.some((b) => b.type === 'campfire');
                   if ((inv.raw_meat || 0) >= 1 && hasCampfire) {
                     removeFromInventory('raw_meat', 1);
                     addToInventory('cooked_meat', 1);

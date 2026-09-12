@@ -1,44 +1,15 @@
 'use client';
+
 import { useSimStore } from '@/store/useSimStore';
 import { useTimeStore } from '@/store/useTimeStore';
-import { Heart, Zap, Smile, Sun, Moon, Sunrise, Sunset } from 'lucide-react';
-
-const ITEM_CONFIG: Record<string, { bg: string; label: string }> = {
-  wood: { bg: '#6b4226', label: 'Wood' },
-  raw_meat: { bg: '#991b1b', label: 'Raw' },
-  cooked_meat: { bg: '#c2410c', label: 'Cooked' },
-};
-
-function StatBar({
-  value,
-  color,
-  icon,
-}: {
-  value: number;
-  color: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="w-4 h-4 shrink-0">{icon}</span>
-      <div className="flex-1 h-2.5 bg-black/50 rounded-sm overflow-hidden border border-white/10">
-        <div
-          className="h-full transition-all duration-700 ease-out"
-          style={{ width: `${value}%`, backgroundColor: color }}
-        />
-      </div>
-      <span className="text-[11px] w-7 text-right font-mono text-gray-300">
-        {value}
-      </span>
-    </div>
-  );
-}
+import { Heart, Zap, Smile, Sun, Moon, Sunrise, Sunset, Package, Crosshair, Brain } from 'lucide-react';
+import StatBar from './StatBar';
 
 function TimeIcon({ hour }: { hour: number }) {
-  if (hour >= 6 && hour < 8) return <Sunrise className="w-4 h-4 text-orange-400" />;
-  if (hour >= 8 && hour < 18) return <Sun className="w-4 h-4 text-yellow-400" />;
-  if (hour >= 18 && hour < 20) return <Sunset className="w-4 h-4 text-orange-500" />;
-  return <Moon className="w-4 h-4 text-blue-300" />;
+  if (hour >= 6 && hour < 8) return <Sunrise className="w-5 h-5 text-warning shrink-0" />;
+  if (hour >= 8 && hour < 18) return <Sun className="w-5 h-5 text-warning shrink-0" />;
+  if (hour >= 18 && hour < 20) return <Sunset className="w-5 h-5 text-warning shrink-0" />;
+  return <Moon className="w-5 h-5 text-info shrink-0" />;
 }
 
 function formatHour(h: number): string {
@@ -48,100 +19,124 @@ function formatHour(h: number): string {
   return `${hh}:${mm} ${ampm}`;
 }
 
+function formatThought(text: string): string {
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .trim();
+}
+
 export default function SimOverlay() {
-  const { stats, isThinking, lastThought, inventory } = useSimStore();
-  const { hour, minute, second, day, year, getMonthName, getTimeString, getSunrise, getSunset, isDaytime } = useTimeStore();
+  const { stats, isThinking, lastThought, inventory, triggerFocusCamera } = useSimStore();
+  const { hour, day, year, getMonthName, getTimeString, getSunrise, getSunset } = useTimeStore();
 
   const sunriseStr = formatHour(Math.round(getSunrise()));
   const sunsetStr = formatHour(Math.round(getSunset()));
 
   return (
     <>
-      {/* Time panel */}
-      <div className="absolute top-14 left-4 bg-gray-950/80 backdrop-blur-sm p-3 rounded-lg text-white z-50 pointer-events-auto border border-white/10 shadow-2xl">
-        <div className="flex items-center gap-2 mb-1">
+      <div className="absolute top-14 left-4 hud-panel p-3.5 w-60 z-50 pointer-events-auto">
+        <div className="flex items-center gap-2 mb-1.5">
           <TimeIcon hour={hour} />
-          <span className="text-sm font-mono font-semibold">{getTimeString()}</span>
+          <span className="text-base font-mono font-bold text-hud-foreground">
+            {getTimeString()}
+          </span>
         </div>
-        <div className="text-[11px] text-gray-400 font-mono">
+
+        <div className="text-xs text-hud-muted font-mono font-medium">
           {getMonthName()} {day}, Year {year}
         </div>
-        <div className="flex gap-3 mt-1.5 text-[10px] text-gray-500 font-mono">
+
+        <div className="flex gap-4 mt-2 pt-2 border-t border-hud-border text-xs text-hud-muted font-mono">
           <span className="flex items-center gap-1">
-            <Sunrise className="w-3 h-3 text-orange-400/60" />
-            {sunriseStr}
+            <Sunrise className="w-3.5 h-3.5 text-warning" />
+            <span className="text-hud-foreground">{sunriseStr}</span>
           </span>
           <span className="flex items-center gap-1">
-            <Sunset className="w-3 h-3 text-orange-500/60" />
-            {sunsetStr}
+            <Sunset className="w-3.5 h-3.5 text-warning" />
+            <span className="text-hud-foreground">{sunsetStr}</span>
           </span>
         </div>
       </div>
 
-      {/* Status panel */}
-      <div className="absolute top-4 right-4 bg-gray-950/80 backdrop-blur-sm p-3.5 rounded-lg w-64 text-white z-50 pointer-events-auto border border-white/10 shadow-2xl">
-        <div className="flex justify-between items-center mb-2.5">
-          <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
-            Status
-          </span>
+      <div className="absolute top-4 right-4 hud-panel p-4 w-80 sm:w-96 z-50 pointer-events-auto space-y-3.5 max-h-[92vh] flex flex-col">
+        <div className="flex justify-between items-center pb-2 border-b border-hud-border">
+          <div className="flex items-center gap-2">
+            <span className="hud-title">SIM STATUS</span>
+            <button
+              onClick={triggerFocusCamera}
+              className="px-2 py-0.5 rounded bg-hud-track hover:bg-hud-border text-[11px] font-mono text-hud-foreground flex items-center gap-1 transition-colors"
+              title="Center camera on Sim"
+            >
+              <Crosshair className="w-3 h-3 text-primary" />
+              <span>Center Sim</span>
+            </button>
+          </div>
+
           {isThinking && (
-            <span className="text-[11px] animate-pulse text-cyan-400 font-mono flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full" />
+            <span className="text-xs font-mono font-semibold text-info flex items-center gap-1.5 animate-pulse bg-info/10 px-2 py-0.5 rounded-full border border-info/30">
+              <span className="w-1.5 h-1.5 bg-info rounded-full" />
               Thinking
             </span>
           )}
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2.5">
           <StatBar
+            label="Hunger"
             value={stats.hunger}
-            color="#ef4444"
-            icon={<Heart className="w-4 h-4 text-red-400" />}
+            variant="error"
+            icon={<Heart className="w-4 h-4 text-error" />}
           />
           <StatBar
+            label="Energy"
             value={stats.energy}
-            color="#eab308"
-            icon={<Zap className="w-4 h-4 text-yellow-400" />}
+            variant="warning"
+            icon={<Zap className="w-4 h-4 text-warning" />}
           />
           <StatBar
+            label="Happiness"
             value={stats.happiness}
-            color="#22c55e"
-            icon={<Smile className="w-4 h-4 text-green-400" />}
+            variant="success"
+            icon={<Smile className="w-4 h-4 text-success" />}
           />
         </div>
 
-        {lastThought && (
-          <div className="mt-2.5 p-2 bg-black/40 rounded text-[11px] border border-white/5 leading-relaxed text-gray-300">
-            {lastThought}
+        <div className="pt-2 border-t border-hud-border flex-1 min-h-0 flex flex-col">
+          <div className="flex items-center gap-1.5 mb-1.5 text-xs text-hud-muted font-semibold">
+            <Brain className="w-3.5 h-3.5 text-primary" />
+            <span>AI Stream of Thought</span>
           </div>
-        )}
 
-        {!isThinking && !lastThought && (
-          <div className="mt-2 text-[11px] text-gray-600 text-center italic">
-            Idle
-          </div>
-        )}
+          {lastThought ? (
+            <div className="p-3 bg-hud-tag rounded-lg border border-hud-border overflow-y-auto max-h-48 text-xs text-hud-foreground leading-relaxed">
+              {formatThought(lastThought)}
+            </div>
+          ) : (
+            <div className="p-3 bg-hud-tag rounded-lg border border-hud-border text-xs text-hud-muted italic text-center">
+              {isThinking ? 'Evaluating surroundings and planning actions...' : 'Idle, observing the world.'}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Inventory hotbar */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1 z-50 pointer-events-auto">
-        {Object.entries(inventory).map(([item, count]) => {
-          const cfg = ITEM_CONFIG[item] || { bg: '#555', label: item };
-          return (
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-50 pointer-events-auto max-w-[90vw] overflow-x-auto p-1.5 hud-panel">
+        {Object.entries(inventory)
+          .filter(([, count]) => count > 0)
+          .map(([item, count]) => (
             <div
               key={item}
-              className="w-14 h-14 bg-gray-950/80 border border-white/10 rounded-md flex flex-col items-center justify-center gap-0.5 backdrop-blur-sm"
+              className="min-w-14 h-14 px-2 bg-hud-tag border border-hud-border rounded-md flex flex-col items-center justify-center gap-0.5"
             >
-              <div
-                className="w-6 h-6 rounded-sm"
-                style={{ backgroundColor: cfg.bg }}
-              />
-              <span className="text-[9px] text-gray-400 font-mono leading-none">
-                {cfg.label} {count}
+              <Package className="w-4 h-4 text-primary" />
+              <span className="text-[9px] text-hud-muted font-mono leading-none capitalize">
+                {item.replace(/_/g, ' ')}
+              </span>
+              <span className="text-xs text-hud-foreground font-mono font-bold leading-none">
+                {count}
               </span>
             </div>
-          );
-        })}
+          ))}
       </div>
     </>
   );

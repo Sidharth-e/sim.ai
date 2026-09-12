@@ -1,5 +1,6 @@
 import { DynamicTool } from "@langchain/core/tools";
 import { BLUEPRINTS, CRAFTABLE_ITEMS, GATHERABLE_RESOURCES } from "./blueprints";
+import { validateBlockPlacement } from "../world/validation";
 
 export interface AgentWorldState {
   blocks?: { pos: number[]; type: string }[];
@@ -20,9 +21,26 @@ const gatherList = Object.entries(GATHERABLE_RESOURCES)
 export const createTools = (worldState?: AgentWorldState) => [
   new DynamicTool({
     name: "place_block",
-    description: "Places a single block at specified coordinates. Arguments: x, y, z, type. Available types: wood, stone, dirt, sand, grass, snow, leaves, campfire, torch, chest, farmland, water, brick, cobblestone, glass, iron, gold. Example: place_block(1, 0, 1, 'stone')",
+    description: "Places a single block at specified coordinates. Arguments: x, y, z, type. Available types: wood, stone, dirt, sand, grass, snow, leaves, campfire, torch, chest, farmland, water, brick, cobblestone, glass, wood_plank, iron, gold. Example: place_block(1, 0, 1, 'stone')",
     func: async (input: string) => {
       const cleanInput = input.replace(/[\[\]]/g, '');
+      const parts = cleanInput.split(',').map((s) => s.trim().replace(/['"]/g, ''));
+      const x = Number(parts[0]);
+      const y = Number(parts[1]);
+      const z = Number(parts[2]);
+      const type = parts[3] || 'wood';
+
+      const validation = validateBlockPlacement(
+        [x, y, z],
+        type,
+        worldState?.position as [number, number, number] | undefined,
+        worldState?.blocks as { pos: [number, number, number] }[] | undefined
+      );
+
+      if (!validation.valid) {
+        return `ERROR: Cannot place block - ${validation.reason}`;
+      }
+
       console.log(`[Agent Tool] place_block called with: ${cleanInput}`);
       return `ACTION: place_block(${cleanInput})`;
     },

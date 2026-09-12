@@ -13,6 +13,7 @@ interface SimState {
   isThinking: boolean;
   lastThought: string;
   inventory: Record<string, number>;
+  focusCameraSignal: number;
   updateStats: (delta: Partial<SimStats>) => void;
   setPosition: (pos: [number, number, number]) => void;
   setTravelTarget: (pos: [number, number, number] | null) => void;
@@ -20,6 +21,7 @@ interface SimState {
   setLastThought: (thought: string) => void;
   addToInventory: (item: string, amount: number) => void;
   removeFromInventory: (item: string, amount: number) => void;
+  triggerFocusCamera: () => void;
 }
 
 export const useSimStore = create<SimState>((set) => ({
@@ -29,6 +31,7 @@ export const useSimStore = create<SimState>((set) => ({
   isThinking: false,
   lastThought: '',
   inventory: { wood: 0, stone: 0, dirt: 0, sand: 0, raw_meat: 0, cooked_meat: 0, plank: 0, stick: 0, plant_fiber: 0, coal: 0, wheat: 0, bread: 0, rope: 0, stone_tool: 0, torch_item: 0 },
+  focusCameraSignal: 0,
   updateStats: (delta) => set((state) => ({
     stats: { ...state.stats, ...delta }
   })),
@@ -47,5 +50,8 @@ export const useSimStore = create<SimState>((set) => ({
       ...state.inventory,
       [item]: Math.max(0, (state.inventory[item] || 0) - amount)
     }
+  })),
+  triggerFocusCamera: () => set((state) => ({
+    focusCameraSignal: state.focusCameraSignal + 1
   })),
 }));
